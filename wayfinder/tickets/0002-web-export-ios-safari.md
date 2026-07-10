@@ -50,3 +50,9 @@ sharpens the *Performance budget* fog into a **binding memory constraint** for
 worldgen (0005); constrains **0008 (audio)** to Sample-playback one-shots; hands
 **0009 (save)** an evictable/context-divergent web-storage requirement. No new
 tickets and nothing ruled out of scope.
+
+> **Addendum (follow-up session):** on reflection, one Task ticket *was* graduated —
+> [0011 · on-device iOS Safari smoke test](0011-ios-smoke-test.md) — to empirically
+> confirm this docs-based verdict on Fiachra's real iPhone before the platform bet is
+> treated as fully de-risked. Everything above stands; this only adds the confirmation
+> step.
