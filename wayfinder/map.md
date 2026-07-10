@@ -39,7 +39,7 @@ that Fiachra can open Godot and start building with no open decisions.
 
 <!-- one line per closed ticket: gist + link -->
 
-*(none yet — map freshly charted)*
+- [Godot 4 foundations for a 2D tile-digging game](tickets/0001-godot-foundations.md) — target Godot **4.3+**; destructible world = `TileMapLayer` + `erase_cell()` with hardness/gem_type as TileSet custom data; player = `CharacterBody2D`; autoload singletons for run/wallet/save; touch-first input. [Learning-path asset](assets/0001-godot-foundations-learning-path.md).
 
 ## Not yet specified
 
