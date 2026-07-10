@@ -3,7 +3,7 @@ id: 0002
 title: "Godot 4 web export viability on iOS Safari"
 type: research
 status: open
-assignee:
+assignee: fiachramcv (Claude session)
 blocked-by: []
 ---
 
