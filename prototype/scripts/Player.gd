@@ -42,8 +42,8 @@ const STICK_RADIUS := 70.0
 const DRAG_FULL := 90.0
 const DRAG_DEAD := 14.0
 
-var grid                                # DigGrid
-var main                                # Main (reads live settings)
+var grid: DigGrid                       # the grey-box mine
+var main: PrototypeMain                 # reads live settings each frame
 
 var velocity := Vector2.ZERO
 var fuel := FUEL_MAX
@@ -113,8 +113,9 @@ func _current_intent() -> Vector2:
 func _unhandled_input(event: InputEvent) -> void:
 	# emulate_touch_from_mouse is on, so mouse arrives here as touch events too.
 	if event is InputEventScreenTouch:
-		var p := event.position
-		if event.pressed:
+		var touch := event as InputEventScreenTouch
+		var p := touch.position
+		if touch.pressed:
 			match main.scheme:
 				Scheme.STICK:
 					_stick_active = true
@@ -135,10 +136,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_stick_active = false
 			_drag_active = false
 	elif event is InputEventScreenDrag:
+		var drag := event as InputEventScreenDrag
 		if main.scheme == Scheme.STICK and _stick_active:
-			_stick_knob = event.position
+			_stick_knob = drag.position
 		elif main.scheme == Scheme.DRAG and _drag_active:
-			_drag_cur = event.position
+			_drag_cur = drag.position
 
 # ---------------------------------------------------------------------------
 # simulation

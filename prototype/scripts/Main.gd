@@ -1,3 +1,4 @@
+class_name PrototypeMain
 extends Node2D
 ## Prototype orchestrator + HUD. Builds the grey-box mine, the digger, and an
 ## on-screen control panel so all three schemes / two movement modes / two dig

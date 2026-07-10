@@ -30,6 +30,7 @@ jobs:
         with:
           version: 4.3.0
           use-dotnet: false
+          include-templates: true
 
       - name: Export web build (single-threaded)
         run: |
