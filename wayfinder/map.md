@@ -40,6 +40,7 @@ that Fiachra can open Godot and start building with no open decisions.
 <!-- one line per closed ticket: gist + link -->
 
 - [Godot 4 foundations for a 2D tile-digging game](tickets/0001-godot-foundations.md) — target Godot **4.3+**; destructible world = `TileMapLayer` + `erase_cell()` with hardness/gem_type as TileSet custom data; player = `CharacterBody2D`; autoload singletons for run/wallet/save; touch-first input. [Learning-path asset](assets/0001-godot-foundations-learning-path.md).
+- [Web export viability on iOS Safari](tickets/0002-web-export-ios-safari.md) — **web-first HOLDS.** Ship the **single-threaded** export (default since 4.3; no COOP/COEP headers, dodges Safari's threaded-WASM bugs). Web = **Compatibility/WebGL2 only** (no Forward+/WebGPU) — fine for 2D, ~60 FPS on iPhone 15. **The binding constraint is memory, not CPU:** iOS Safari OOMs the old 2 GB WASM cap and can lose the WebGL context at the ~400 MB baseline heap — so the mine must chunk-stream/free tiles. Audio = Sample-playback one-shots (no bus effects), tap-to-start unlocks it. PWA gives a chrome-less home-screen app but **no Fullscreen/orientation-lock on iOS** and **installed-PWA storage diverges from Safari's**. [Viability asset](assets/0002-web-export-ios-safari.md).
 
 ## Not yet specified
 
@@ -47,8 +48,13 @@ that Fiachra can open Godot and start building with no open decisions.
   Hangs on the core loop and economy decisions; too dim to ticket.
 - **Tutorial & onboarding** — shape depends on how intuitive the dig controls
   turn out to be (prototype will tell us).
-- **Performance budget** — tile counts, chunk streaming, particle limits;
-  can't be phrased sharply until worldgen and the web-export research land.
+- **Performance budget** — now framed by [0002](tickets/0002-web-export-ios-safari.md)
+  as a **binding memory constraint on iOS Safari**, not a vague "profile later":
+  steady-state memory must stay comfortably under Safari's ceiling (budget in the
+  low-hundreds of MB, well below the ~2 GB WASM cap), which forces chunk-streaming
+  and freeing off-screen tiles/pickups + capping particles. Still fog — the actual
+  numbers can't be set until worldgen (0005) fixes the mine's shape — but now with a
+  clear target and reason.
 - **Playtesting plan** — who plays early builds and when; likely graduates
   once a vertical-slice definition exists.
 - **Final spec assembly** — the destination document itself; its structure
