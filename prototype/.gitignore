@@ -1,0 +1,4 @@
+# Godot import cache + local exports — regenerated, never committed
+.godot/
+build/
+export_presets.cfg.bak
