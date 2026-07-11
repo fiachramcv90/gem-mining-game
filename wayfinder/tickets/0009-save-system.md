@@ -3,7 +3,7 @@ id: 0009
 title: "Save system on the web build"
 type: research
 status: open
-assignee:
+assignee: fiachramcv (claude session claude/gem-miner-save-0009-vcxsvz)
 blocked-by: [0002]
 ---
 
