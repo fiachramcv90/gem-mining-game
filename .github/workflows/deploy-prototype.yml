@@ -1,12 +1,14 @@
 name: Deploy dig-feel prototype (0004) to Pages
 
 # Builds the single-threaded Godot web export (ticket 0002) and publishes it to
-# GitHub Pages so the prototype can be felt on an iPhone. Runs on every push to
-# the ticket-0004 branch.
+# GitHub Pages so the prototype can be felt on an iPhone. Builds/verifies the
+# export on any push; only DEPLOYS from the default branch, because the
+# github-pages environment only permits deployments from main.
 
 on:
   push:
     branches:
+      - main
       - claude/gem-miner-dig-feel-0004-f2wuc8
   workflow_dispatch:
 
@@ -53,6 +55,8 @@ jobs:
 
   deploy:
     needs: build
+    # Only the default branch may deploy to the github-pages environment.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
