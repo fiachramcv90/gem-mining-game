@@ -3,7 +3,7 @@ id: 0006
 title: "Economy & upgrade curve"
 type: prototype
 status: open
-assignee:
+assignee: fiachramcv90
 blocked-by: [0003]
 ---
 
