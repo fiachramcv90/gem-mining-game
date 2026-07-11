@@ -98,3 +98,31 @@ the **world seed** on return. This is what keeps memory bounded as the mine deep
 The rule mapping depth to view radius: the deeper you are, the smaller you can see,
 down to a non-zero floor. It is the concrete form of **darkness** (the hull risk
 multiplier), pushed back out by the Light upgrade.
+
+## Upgrade track & the ratchet
+
+An **upgrade track** is one permanent capability bought in levels: Drill, Fuel,
+Cargo, Hull, Light, and the aspirational Hoist. **The ratchet** is the whole
+permanent-upgrade progression taken together — the economy's engine. It only ever
+turns forward: money spent on a level is banked as capability, never lost on a run
+(Wallet and upgrades survive a **run lost**). Selling **cargo** funds it.
+
+## Gem tier
+
+The value/rarity class of a gem (Tier 1 … Tier 5). Higher tiers are worth more and
+peak in deeper **bands**; the **prize gem** sits above the tier scale entirely.
+Deeper pays better through *tier*, not through more gems (density stays ~flat).
+
+## Drill power & drill frontier
+
+**Drill power** is the Drill track's effect: it divides drill time, so a stronger
+drill clears the same **hardness** faster. The **drill frontier** is the deepest
+rock your current drill comfortably handles — rock at the frontier resists most,
+rock you've upgraded past drills fast. Going deeper means moving the frontier by
+buying drill power.
+
+## Hoist
+
+The aspirational fast-travel upgrade: it shortens (and cheapens the **fuel** cost
+of) the climb home from a beaten shaft. A late-game luxury and money sink, not part
+of the base loop — the base loop is always self-powered ascent.
