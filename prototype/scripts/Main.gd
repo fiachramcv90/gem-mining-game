@@ -5,7 +5,7 @@ extends Node2D
 ## timings can be compared LIVE on one build — no rebuild to switch. THROWAWAY.
 
 # live settings the Player reads each frame
-var scheme: int = DiggerPlayer.Scheme.TAP
+var scheme: int = DiggerPlayer.Scheme.STICK
 var move_mode: int = DiggerPlayer.Move.FLOATY
 var dig_mode: int = DiggerPlayer.Dig.DRILL
 

@@ -38,7 +38,8 @@ const G_DRIVE_DRAIN := 2.0
 const REFILL := 60.0
 
 # input geometry
-const STICK_RADIUS := 70.0
+const STICK_RADIUS := 64.0
+const STICK_DEAD := 0.16      # fraction of radius ignored, then rescaled (no drift, no jump)
 const DRAG_FULL := 90.0
 const DRAG_DEAD := 14.0
 
@@ -95,7 +96,13 @@ func _current_intent() -> Vector2:
 	match main.scheme:
 		Scheme.STICK:
 			if _stick_active:
-				return ((_stick_knob - _stick_center) / STICK_RADIUS).limit_length(1.0)
+				var raw := (_stick_knob - _stick_center) / STICK_RADIUS
+				var mag := raw.length()
+				if mag < STICK_DEAD:
+					return Vector2.ZERO
+				# rescale past the dead zone so it eases in from 0 instead of jumping
+				var scaled := (mag - STICK_DEAD) / (1.0 - STICK_DEAD)
+				return raw.normalized() * minf(scaled, 1.0)
 		Scheme.DRAG:
 			if _drag_active:
 				var off := _drag_cur - _drag_origin
@@ -139,6 +146,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var drag := event as InputEventScreenDrag
 		if main.scheme == Scheme.STICK and _stick_active:
 			_stick_knob = drag.position
+			# trailing base: if the thumb pulls past the ring, drag the base along
+			# so it stays under the thumb -> reversing direction is instant
+			var off := _stick_knob - _stick_center
+			if off.length() > STICK_RADIUS:
+				_stick_center = _stick_knob - off.normalized() * STICK_RADIUS
 		elif main.scheme == Scheme.DRAG and _drag_active:
 			_drag_cur = drag.position
 
