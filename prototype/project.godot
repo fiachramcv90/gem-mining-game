@@ -1,0 +1,31 @@
+; Godot 4.3+ project file — Gem Miner dig-feel prototype (wayfinder ticket 0004).
+; THROWAWAY grey-box prototype. Single screen, no real mine, no art.
+; Compatibility/WebGL2 renderer + single-threaded web export per ticket 0002.
+
+config_version=5
+
+[application]
+
+config/name="Gem Miner — Dig-Feel Prototype (0004)"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=440
+window/size/viewport_height=880
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+window/handheld/orientation="portrait"
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0

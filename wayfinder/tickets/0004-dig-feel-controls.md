@@ -3,7 +3,7 @@ id: 0004
 title: "Dig feel & touch controls prototype"
 type: prototype
 status: open
-assignee:
+assignee: fiachramcv (claude session claude/gem-miner-dig-feel-0004-f2wuc8)
 blocked-by: [0001, 0002]
 ---
 

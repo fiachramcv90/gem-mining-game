@@ -1,0 +1,67 @@
+name: Deploy dig-feel prototype (0004) to Pages
+
+# Builds the single-threaded Godot web export (ticket 0002) and publishes it to
+# GitHub Pages so the prototype can be felt on an iPhone. Builds/verifies the
+# export on any push; only DEPLOYS from the default branch, because the
+# github-pages environment only permits deployments from main.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/gem-miner-dig-feel-0004-f2wuc8
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Godot 4.3 (with export templates)
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.3.0
+          use-dotnet: false
+          include-templates: true
+
+      - name: Export web build (single-threaded)
+        run: |
+          cd prototype
+          mkdir -p build
+          # first pass imports resources, second pass exports
+          godot --headless --import || true
+          godot --headless --export-release "Web" build/index.html
+          ls -la build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: prototype/build
+
+  deploy:
+    needs: build
+    # Only the default branch may deploy to the github-pages environment.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
