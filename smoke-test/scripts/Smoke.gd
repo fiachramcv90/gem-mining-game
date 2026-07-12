@@ -104,8 +104,11 @@ func _make_blip() -> AudioStreamWAV:
 
 
 func _probe_renderer() -> void:
-	_render_method = OS.get_current_rendering_method()          # -> "gl_compatibility"
-	_render_driver = OS.get_current_rendering_driver_name()     # -> "opengl3" (WebGL2 on web)
+	# NOTE: these live on RenderingServer, not OS (an OS.* call here is a GDScript
+	# *parse* error that fails the whole script to load — which the export step
+	# never catches, only actually running the scene does).
+	_render_method = RenderingServer.get_current_rendering_method()       # -> "gl_compatibility"
+	_render_driver = RenderingServer.get_current_rendering_driver_name()  # -> "opengl3" (WebGL2 on web)
 	_adapter = RenderingServer.get_video_adapter_name()
 	# On the web platform, opengl3 == WebGL 2.0 and gl_compatibility is the only
 	# renderer available (0002 §2), so this pairing IS the "WebGL2 up" signal.
