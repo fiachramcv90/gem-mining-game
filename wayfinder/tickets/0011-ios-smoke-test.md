@@ -2,7 +2,7 @@
 id: 0011
 title: "On-device iOS Safari smoke test of a single-threaded web export"
 type: task
-status: open
+status: closed
 assignee: fiachramcv90
 blocked-by: []
 ---
@@ -91,3 +91,80 @@ close the ticket, add a one-line gist to the map, and note that it feeds 0002's
 mitigation ladder (§7) and sharpens the Performance-budget fog. If a **real blocker**
 shows up, I won't quietly redesign — it goes back to 0002 §7 and we flag whether the
 platform bet needs revisiting.
+
+## Resolution — 2026-07-12: 0002 CONFIRMED on-device ✅
+
+Fiachra ran the harness on his **physical iPhone** (WebKit — first attempt used
+iOS Chrome, which is WebKit-under-the-hood, then confirmed the working build in
+**Safari**). After a one-round build bug was fixed (see below), the smoke test
+**passed and matches 0002's prediction**. The web-first platform bet is now
+**empirically de-risked**, not just reasoned from docs.
+
+### What the device showed (screenshots on the ticket)
+
+| Checklist row (Safari tab) | Result |
+|---|---|
+| Loads | **PASS** — title + gem + readouts render |
+| WebGL2 renders, no context-lost | **PASS** — readout: `WebGL2 OK · gl_compatibility · OpenGL ES 3.0 (WebGL 2.0) · WebKit WebGL`; no "context lost" banner |
+| Touch responds | **PASS** — gem tracks the finger; tap counter climbed into the hundreds |
+| Sample SFX after first tap | **PASS (observed)** — Safari's tab audio indicator lit on tap; audio unlocked on gesture as 0002 §3 predicts. *(Clean-vs-glitchy not separately reported.)* |
+| Memory stable on rotate/resize, no crash | **PASS (qualitative)** — `resizes` climbed 2 → 9 incl. portrait↔landscape; **FPS pinned at 60**; no tab crash, no context loss. See caveat below on the numbers. |
+
+This directly validates the four things 0002 rests on: single-threaded
+Compatibility/WebGL2 runs on iOS WebKit; audio unlocks on first gesture; and —
+the headline — **WebKit survived repeated rotate/resize without the §4
+canvas-resize crash or a lost context.**
+
+### Safari surprises / caveats
+
+- **No hard memory number.** The two on-screen memory figures did **not**
+  instrument on the web export: `Performance.get_monitor(MEMORY_STATIC)` reads
+  **0.0 MB** on web (the WASM heap is Emscripten-managed, not counted by Godot's
+  static allocator), and the **"WASM heap" line never appeared** — i.e. the
+  `head_include` shim's `window.__godotWasmMemory` capture **did not catch the
+  engine's `WebAssembly.Memory`**, so the live heap readout and the **512 MB
+  clamp are UNCONFIRMED** (the on-screen "cap 512 MB" is only the shim announcing
+  intent, not proof it applied). So the memory-ceiling result is **qualitative**
+  (no OOM, stable FPS, no crash across 9 resizes) — strong but not a measured
+  number. The exact figure is deferred to the real profiling pass.
+- **PWA / Add-to-Home-Screen (checklist context B) not separately confirmed** in
+  this pass — all screenshots are the Safari tab. The PWA export itself builds
+  correctly (manifest + service worker + 144/180/512 icons + apple-touch-icon,
+  verified in CI), and the standalone install is a cheap spot-check to record
+  later; it does not gate the platform verdict.
+- **Build bug found and fixed en route (a real learning).** The first deploy
+  showed a blank **grey** screen on device: the diagnostic script called
+  `OS.get_current_rendering_method()/driver_name()`, which **do not exist in
+  Godot 4.3** (nor on `RenderingServer` — later-4.x additions). In GDScript that's
+  a *parse error* that fails the whole script to load, so the scene ran nothing
+  (grey = default clear colour). Crucially `godot --export-release` compiles-and-
+  packs the script but never *runs* it, so it passed a green export and only died
+  on load. Fixed by reading the method from `ProjectSettings` and the live WebGL
+  string from `RenderingServer.get_video_adapter_name()/get_video_adapter_api_version()`,
+  and by adding a **CI headless-run gate** that runs the scene and fails the build
+  on any script error (it caught a second bad guess before it reached the phone).
+  Written up in the learning-notes asset §8.
+
+### Does the platform bet need revisiting? No.
+
+Nothing here feeds 0002 §7's fallback ladder — there was **no blocker**, only a
+throwaway-harness bug of my own making. 0002's verdict **HOLDS, now confirmed on
+metal.**
+
+### Feeds forward
+
+- **0002's mitigation ladder (§7):** the canvas-resize/​context-loss row is now
+  **empirically clear** on this device — WebKit took 9 resizes incl. rotation at
+  60 FPS with no crash. (Still design against it — one device isn't a guarantee.)
+- **Performance-budget fog (map):** sharpened. The *qualitative* memory result is
+  reassuring, but this pass produced **no measured heap number** on iOS — so the
+  on-device profiling task that graduates from that fog must **fix the web memory
+  instrumentation first** (the `MEMORY_STATIC`-reads-0 problem and the
+  `WebAssembly.Memory` capture that didn't fire) before it can set the real
+  resident-window/chunk budget. That's a concrete, newly-known requirement for the
+  profiling pass.
+
+Artifacts: harness in [`smoke-test/`](../../smoke-test/) (throwaway — delete when
+the profiling task no longer needs it); learning notes in
+[`assets/0011-ios-smoke-test-notes.md`](../assets/0011-ios-smoke-test-notes.md);
+CI script-error gate in `.github/workflows/deploy-prototype.yml`.
