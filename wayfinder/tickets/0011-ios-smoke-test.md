@@ -3,7 +3,7 @@ id: 0011
 title: "On-device iOS Safari smoke test of a single-threaded web export"
 type: task
 status: open
-assignee:
+assignee: fiachramcv90
 blocked-by: []
 ---
 
