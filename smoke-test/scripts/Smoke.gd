@@ -104,14 +104,18 @@ func _make_blip() -> AudioStreamWAV:
 
 
 func _probe_renderer() -> void:
-	# NOTE: these live on RenderingServer, not OS (an OS.* call here is a GDScript
-	# *parse* error that fails the whole script to load — which the export step
-	# never catches, only actually running the scene does).
-	_render_method = RenderingServer.get_current_rendering_method()       # -> "gl_compatibility"
-	_render_driver = RenderingServer.get_current_rendering_driver_name()  # -> "opengl3" (WebGL2 on web)
+	# Godot 4.3 has NO get_current_rendering_method()/driver_name() on OS *or*
+	# RenderingServer (those arrived in a later 4.x) — calling them is a GDScript
+	# parse error that fails the whole script to load, so the scene runs nothing
+	# and iOS shows only the default grey clear colour. Use what 4.3 actually has:
+	# the configured method from ProjectSettings, and the video-adapter calls
+	# (get_video_adapter_name/api_version exist in 4.3).
+	_render_method = str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "gl_compatibility"))
+	_render_driver = RenderingServer.get_video_adapter_api_version()  # e.g. "WebGL 2.0 ..." on web
 	_adapter = RenderingServer.get_video_adapter_name()
-	# On the web platform, opengl3 == WebGL 2.0 and gl_compatibility is the only
-	# renderer available (0002 §2), so this pairing IS the "WebGL2 up" signal.
+	# gl_compatibility is the only web renderer (0002 §2) and it targets WebGL 2.0,
+	# so the configured method being gl_compatibility IS the "WebGL2 up" signal;
+	# the api-version string above shows the live "WebGL 2.0" for the eye.
 	_webgl2_ok = _render_method == "gl_compatibility"
 
 
