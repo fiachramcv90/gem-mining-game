@@ -1,15 +1,22 @@
-name: Deploy dig-feel prototype (0004) to Pages
+name: Deploy prototype + iOS smoke test to Pages
 
-# Builds the single-threaded Godot web export (ticket 0002) and publishes it to
-# GitHub Pages so the prototype can be felt on an iPhone. Builds/verifies the
-# export on any push; only DEPLOYS from the default branch, because the
-# github-pages environment only permits deployments from main.
+# Builds the single-threaded Godot web exports (ticket 0002) and publishes them
+# to GitHub Pages. TWO throwaway builds share one Pages site:
+#   * the 0004 dig-feel prototype  -> served at  /        (prototype/)
+#   * the 0011 iOS smoke test      -> served at  /smoke/  (smoke-test/)
+# They are combined into one uploaded directory so neither clobbers the other.
+#
+# Builds/verifies the exports on any listed push; only DEPLOYS from the default
+# branch, because the github-pages environment only permits deployments from
+# main. Other branches build/verify only (proves the export configs are valid
+# before merge).
 
 on:
   push:
     branches:
       - main
       - claude/gem-miner-dig-feel-0004-f2wuc8
+      - claude/gem-miner-ios-smoke-0011-xcglyw
   workflow_dispatch:
 
 permissions:
@@ -34,7 +41,7 @@ jobs:
           use-dotnet: false
           include-templates: true
 
-      - name: Export web build (single-threaded)
+      - name: Export dig-feel prototype (0004, single-threaded)
         run: |
           cd prototype
           mkdir -p build
@@ -42,6 +49,23 @@ jobs:
           godot --headless --import || true
           godot --headless --export-release "Web" build/index.html
           ls -la build
+
+      - name: Export iOS smoke test (0011, single-threaded + PWA)
+        run: |
+          cd smoke-test
+          mkdir -p build
+          godot --headless --import || true
+          godot --headless --export-release "Web" build/index.html
+          ls -la build
+
+      - name: Assemble Pages site (prototype at /, smoke test at /smoke/)
+        run: |
+          rm -rf site
+          mkdir -p site/smoke
+          cp -r prototype/build/. site/
+          cp -r smoke-test/build/. site/smoke/
+          echo "--- site/ ---"; ls -la site
+          echo "--- site/smoke/ ---"; ls -la site/smoke
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -51,7 +75,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: prototype/build
+          path: site
 
   deploy:
     needs: build
