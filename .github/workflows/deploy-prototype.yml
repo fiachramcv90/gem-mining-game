@@ -58,6 +58,18 @@ jobs:
           godot --headless --export-release "Web" build/index.html
           ls -la build
 
+      # TEMP diagnostic: actually RUN the smoke scene headless so any _ready/
+      # _process runtime script error (which the export step never executes)
+      # shows up in the log. Non-fatal — we only want the output.
+      - name: Headless smoke-run (catch runtime script errors)
+        run: |
+          cd smoke-test
+          set +e
+          timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log
+          echo "=== filtered errors ==="
+          grep -iE "SCRIPT ERROR|Parse Error|Invalid call|Nonexistent|Cannot call|res://scripts" run.log || echo "no script errors matched"
+          exit 0
+
       - name: Assemble Pages site (prototype at /, smoke test at /smoke/)
         run: |
           rm -rf site
