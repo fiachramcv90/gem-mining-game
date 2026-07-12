@@ -107,16 +107,15 @@ iOS Chrome, which is WebKit-under-the-hood, then confirmed the working build in
 | Loads | **PASS** — title + gem + readouts render |
 | WebGL2 renders, no context-lost | **PASS** — readout: `WebGL2 OK · gl_compatibility · OpenGL ES 3.0 (WebGL 2.0) · WebKit WebGL`; no "context lost" banner |
 | Touch responds | **PASS** — gem tracks the finger; tap counter climbed into the hundreds |
-| Sample SFX after first tap | **INCONCLUSIVE — no audible sound** in either the tab or the installed PWA. Safari's tab **audio indicator DID light** on tap (the page emitted audio), but nothing was heard. Almost certainly the **iOS ring/silent switch**, which mutes Web Audio (his status bar shows silent mode). Not confirmed as working; see caveat below. |
+| Sample SFX after first tap | **PASS** — silent at first because the **iOS ring/silent switch was on** (which mutes Web Audio); with the switch **off**, the blip played on tap. Sample-playback audio unlocks on first gesture exactly as 0002 §3 predicts. *(iOS-silent-switch-mutes-WebAudio is a real UX note — see caveat.)* |
 | PWA install (Add to Home Screen) | **PASS** — Fiachra installed it and ran both contexts; it installed and launched. (Render/touch identical to the tab.) |
 | Memory stable on rotate/resize, no crash | **PASS (qualitative)** — `resizes` climbed 2 → 9 incl. portrait↔landscape; **FPS pinned at 60**; no tab crash, no context loss. See caveat below on the numbers. |
 
-This validates the render/input/stability legs of 0002: single-threaded
-Compatibility/WebGL2 runs on iOS WebKit, touch works, the PWA installs, and —
-the headline — **WebKit survived repeated rotate/resize without the §4
-canvas-resize crash or a lost context.** The **audio leg is not yet positively
-confirmed** (no sound heard — see below), though the tab audio-indicator lighting
-is consistent with 0002 §3's "it plays, the silent switch just muted it."
+This validates **all four legs 0002 rests on**: single-threaded
+Compatibility/WebGL2 runs on iOS WebKit, touch works, **Sample audio unlocks on
+first gesture** (once the silent switch is off), the PWA installs, and — the
+headline — **WebKit survived repeated rotate/resize without the §4 canvas-resize
+crash or a lost context.**
 
 ### Safari surprises / caveats
 
@@ -130,18 +129,16 @@ is consistent with 0002 §3's "it plays, the silent switch just muted it."
   intent, not proof it applied). So the memory-ceiling result is **qualitative**
   (no OOM, stable FPS, no crash across 9 resizes) — strong but not a measured
   number. The exact figure is deferred to the real profiling pass.
-- **Audio produced no audible sound** in either the tab or the installed PWA —
-  the one row that did **not** cleanly pass. Two candidate causes, in likelihood
-  order: **(1) the iOS ring/silent switch**, which mutes Web Audio on iOS — his
-  status bar shows silent mode, and Safari's tab audio-indicator *did* light
-  (i.e. audio was emitted, just muted). A recheck with the ringer on + volume up
-  is the cheap disambiguator. **(2)** the harness plays a **code-generated
-  `AudioStreamWAV` as a Sample**; if (1) is ruled out, web Sample playback may not
-  emit a runtime-generated (unimported) sample, in which case the fix for the real
-  game is a proper imported `.wav` sample (or Stream playback) — a note for the
-  audio ticket (0008), not a platform blocker. **Net:** 0002 §3's audio claim is
-  **not disproven** (indicator lit) but **not yet positively confirmed on-device**;
-  pending the ringer-on recheck.
+- **iOS silent switch mutes Web Audio (UX note, not a bug).** Audio was silent on
+  the first pass purely because the phone's **ring/silent switch was on** — with
+  it **off**, the blip played on tap (confirmed by Fiachra). This is standard iOS
+  behaviour: Web Audio is routed through the ambient channel that the hardware
+  mute switch silences. It's *not* a platform blocker, but it **is a real UX
+  consideration for the real game** — many players keep their phone on silent and
+  will hear nothing. Flag for **0008 / onboarding**: either accept it, or (if
+  worth it) use a Web Audio "playback"-category shim so game audio ignores the
+  mute switch. The code-generated-`AudioStreamWAV`-as-Sample path worked fine, so
+  no change needed there.
 - **Build bug found and fixed en route (a real learning).** The first deploy
   showed a blank **grey** screen on device: the diagnostic script called
   `OS.get_current_rendering_method()/driver_name()`, which **do not exist in
