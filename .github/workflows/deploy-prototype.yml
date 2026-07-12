@@ -58,6 +58,21 @@ jobs:
           godot --headless --export-release "Web" build/index.html
           ls -la build
 
+      # Actually RUN the smoke scene headless so any parse/runtime script error
+      # (which the export step compiles-and-packs right past, never executing)
+      # is caught here — a bad OS.* vs RenderingServer.* call is a parse error
+      # that silently kills the scene on device otherwise. This is a GATE: the
+      # build fails if the scene logs a script error.
+      - name: Headless smoke-run (gate on script errors)
+        run: |
+          cd smoke-test
+          timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log || true
+          if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function" run.log; then
+            echo "::error::smoke-test scene logged a script error (see above) — not deploying"
+            exit 1
+          fi
+          echo "smoke-test scene loaded clean (no script errors)"
+
       - name: Assemble Pages site (prototype at /, smoke test at /smoke/)
         run: |
           rm -rf site

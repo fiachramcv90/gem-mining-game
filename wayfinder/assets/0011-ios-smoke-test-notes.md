@@ -178,3 +178,33 @@ memory ceiling or safe-area behaviour — 0002 §8 is explicit that even the iOS
 build de-risks everything up to the device, and the device result is Fiachra's to
 report. This session did not have a local Godot/iPhone, so the pre-merge signal
 is "CI export is green"; the on-device pass/fail lands on the ticket afterward.
+
+## 8. Gotcha that bit us — "export is green" ≠ "the script runs"
+
+The first deploy loaded on the iPhone then showed a blank **grey** screen (that
+grey is Godot's *default clear colour* — the engine is up but the scene drew
+nothing). Cause: the diagnostic script called `OS.get_current_rendering_method()`
+/ `OS.get_current_rendering_driver_name()`. **Those methods don't exist in Godot
+4.3** — not on `OS`, and not on `RenderingServer` either (they're a later-4.x
+addition). In GDScript a call to a non-existent native method is a **parse
+error**, and a parse error makes the *entire script fail to load* — so the scene
+node ran no `_ready`/`_process`/`_draw` at all. Silent grey.
+
+Two lessons for a web/TS dev in Godot:
+
+1. **`godot --headless --export-release` compiles-and-packs the script but never
+   *runs* it**, so a parse/nonexistent-method error sails straight through a
+   green export and only bites when the scene actually loads (on device). Don't
+   read "export succeeded" as "the code works."
+2. **The fix is a CI gate that RUNS the scene.** The workflow now has a
+   *"Headless smoke-run (gate on script errors)"* step: `godot --headless
+   --quit-after 120`, then `grep` the log for `SCRIPT ERROR|Parse Error|Failed to
+   load script|…` and `exit 1` if found. A green build now means the scene
+   *loaded and ran clean*, not merely that it exported. This is the cheap
+   stand-in for "no local Godot to press play in."
+
+What 4.3 *does* have for the same info: the configured method from
+`ProjectSettings.get_setting("rendering/renderer/rendering_method")`, and the
+live WebGL details from `RenderingServer.get_video_adapter_name()` /
+`get_video_adapter_api_version()` (the api-version string reads "WebGL 2.0 …" on
+device — a nicer WebGL2-up signal than a driver enum anyway).
