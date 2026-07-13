@@ -121,6 +121,26 @@ rock your current drill comfortably handles — rock at the frontier resists mos
 rock you've upgraded past drills fast. Going deeper means moving the frontier by
 buying drill power.
 
+## Miner's Log
+
+The single record-of-the-miner screen at the **surface hub**: the player's
+**lifetime stats** and **milestone** checklist together in one place. The
+game's one meta-progression surface.
+
+## Lifetime stats
+
+Counters that accumulate across the whole life of a mine (across runs, never
+reset by a **run lost**): deepest depth, tiles dug, gems collected, money
+banked, and their kin. Passive record-keeping — they are displayed, never
+spent.
+
+## Milestone
+
+A named, one-time badge earned at a landmark moment (first Bedrock, first
+prize gem banked, first lost run…). **Honorific-only**: a milestone pays
+recognition — a banner and a permanent entry in the **Miner's Log** — never
+money, currency, or capability. Unearned milestones are hidden.
+
 ## Hoist
 
 The aspirational fast-travel upgrade: it shortens (and cheapens the **fuel** cost
