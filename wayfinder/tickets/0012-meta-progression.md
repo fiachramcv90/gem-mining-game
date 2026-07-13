@@ -3,7 +3,7 @@ id: 0012
 title: "Meta-progression & retention"
 type: grilling
 status: open
-assignee:
+assignee: fiachramcv90
 blocked-by: [0003, 0006, 0007, 0008]
 ---
 
