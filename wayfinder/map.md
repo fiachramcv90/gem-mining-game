@@ -53,30 +53,6 @@ that Fiachra can open Godot and start building with no open decisions.
 
 ## Not yet specified
 
-- **Meta-progression & retention** — achievements, milestones, daily hooks. Its
-  stated blockers (the [core loop](tickets/0003-core-loop.md) and
-  [economy](tickets/0006-economy-upgrades.md)) are **now both closed**, so this is
-  ready to graduate at the next charting pass: milestones can pin to real economy
-  landmarks — first Bedrock, first prize gem, affording the Hoist — **and now to
-  [0007](tickets/0007-hazards-depth.md)'s 3 danger acts** (survived first Bedrock
-  lava, first cave-in dodged, reached "The Deep") as ready-made danger milestones.
-  **Sharpened by [0008](tickets/0008-art-audio.md):** these milestones now have
-  concrete **visual hooks** to reward (first prize-gem glint, first Bedrock,
-  surviving lava) — 0008 gives them their look without reopening meta-progression
-  itself.
-- **Tutorial & onboarding** — [0004](tickets/0004-dig-feel-controls.md) answered
-  the "how intuitive?" question: the controls are grasped near-instantly ("push to
-  fly, hold into rock to dig"), so onboarding can be *minimal*. The two things
-  worth surfacing early are the **dynamic/trailing virtual stick** and the
-  **round-trip fuel** decision (0003) — plus, from
-  [0009](tickets/0009-save-system.md), an **"Add to Home Screen first"** nudge, since
-  the installed web app dodges iOS Safari's 7-day storage-eviction cap (save
-  durability). **New from [0008](tickets/0008-art-audio.md):** add a **one-time,
-  non-blocking silent-switch nudge** ("🔊 flip off silent for sound") on the
-  tap-to-start screen that already unlocks Web Audio — audio is a bonus, so it
-  never gates play; and the **visual-first juice** layer is now specified, so
-  onboarding can assume feedback lands with sound off. Still fog — firms up into a
-  ticket once a vertical slice exists.
 - **Performance budget** — framed by [0002](tickets/0002-web-export-ios-safari.md)
   as a **binding memory constraint on iOS Safari**, tightened by
   [0003](tickets/0003-core-loop.md)'s **persistent-mine** decision (world grows
@@ -95,11 +71,14 @@ that Fiachra can open Godot and start building with no open decisions.
   capture shim didn't fire. So the profiling task has a **concrete new
   prerequisite: get real web memory instrumentation working first** (measure the
   Emscripten WASM heap, e.g. via a correct `JavaScriptBridge` hook) before any
-  resident-window/chunk number can be trusted.
-- **Playtesting plan** — who plays early builds and when; likely graduates
-  once a vertical-slice definition exists.
-- **Final spec assembly** — the destination document itself; its structure
-  will be clear once most decisions are in.
+  resident-window/chunk number can be trusted. Still fog: it needs a build to
+  profile, which doesn't exist on this planning map — the final spec carries it
+  as a "confirm during build" item with this prerequisite attached.
+- **Playtesting plan** — who plays early builds and when; still can't be
+  phrased sharply without a build to hand people, so it stays fog and likely
+  graduates once a vertical-slice definition exists. Like the profiling task
+  above, the final spec will carry it as an explicit "confirm during build"
+  item rather than an open decision.
 
 ## Out of scope
 
