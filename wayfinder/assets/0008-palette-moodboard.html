@@ -1,0 +1,375 @@
+<title>Gem Miner — Palette Direction: Resurrect-64 vs Endesga-32</title>
+<style>
+  :root {
+    --bg: #14121a;
+    --panel: #1c1926;
+    --panel-2: #232030;
+    --line: #322d40;
+    --ink: #ece6da;
+    --ink-dim: #a49db4;
+    --ink-faint: #6f6980;
+    --gold: #f9c22b;
+    --cyan: #30e1b9;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #241f30 0%, var(--bg) 60%);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  header { border-bottom: 1px solid var(--line); padding-bottom: 26px; margin-bottom: 34px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(26px, 5vw, 40px);
+    line-height: 1.08;
+    margin: 0 0 14px;
+    font-weight: 750;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  .lede { color: var(--ink-dim); max-width: 62ch; font-size: 16px; margin: 0; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  .principle {
+    display: flex; gap: 14px; align-items: baseline;
+    margin: 22px 0 0; padding: 14px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .principle .k {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--gold); white-space: nowrap;
+  }
+  .principle .v { color: var(--ink-dim); font-size: 14.5px; }
+  .principle .v b { color: var(--ink); font-weight: 600; }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 12px; }
+  @media (max-width: 680px) { .panels { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .panel-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .panel-head .count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
+    color: var(--ink-dim);
+  }
+  .tag.reco { color: #0f1418; background: var(--cyan); border-color: var(--cyan); font-weight: 700; }
+
+  .scene-row { display: flex; gap: 12px; }
+  .scene-wrap { flex: 0 0 auto; }
+  canvas.scene {
+    width: 168px; height: 384px; display: block;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    border-radius: 6px; border: 1px solid #000;
+    background: #000;
+  }
+  .bandrail { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; flex: 1 1 auto; }
+  .bandrail .b {
+    display: flex; align-items: center; gap: 8px; height: 25%;
+  }
+  .bandrail .sw { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+  .bandrail .nm { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+  .bandrail .b:nth-child(1){height:19%} .bandrail .b:nth-child(2){height:19%}
+  .bandrail .b:nth-child(3){height:19%} .bandrail .b:nth-child(4){height:19%}
+  .bandrail .b:nth-child(5){height:24%}
+
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; }
+  .strip i { width: 15px; height: 15px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+
+  .character { font-size: 13.5px; color: var(--ink-dim); margin: 0; }
+  .character b { color: var(--ink); font-weight: 600; }
+
+  .look {
+    margin-top: 36px; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px 24px;
+  }
+  .look h3 { margin: 0 0 14px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); font-family: var(--mono); font-weight: 600; }
+  .look ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .look li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--ink-dim); }
+  .look li .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: 0 0 auto; }
+  .look li b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 12.5px; }
+  footer code { font-family: var(--mono); color: var(--ink-dim); background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Gem Miner · Ticket 0008 · Art direction</p>
+    <h1>Two ways the mine could look</h1>
+    <p class="lede">The same scene — five strata, six gems, a hardness <strong>halo</strong> ringing a vein, a <strong>lava pocket</strong>, and the <strong>prize gem glinting through the dark</strong> — rendered in each candidate palette at true 16&nbsp;px. Pick the one whose <em>feel</em> you want; the reserve-saturation rule below is what makes either one legible.</p>
+    <div class="principle">
+      <span class="k">The rule</span>
+      <span class="v"><b>Rock stays desaturated; gems, lava and the glint own the saturated hues.</b> That's why a few bright pixels still read as "not-rock" at the edge of a shrinking view radius.</span>
+    </div>
+  </header>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Resurrect-64</h2>
+        <span class="tag reco">Recommended</span>
+      </div>
+      <div class="scene-row">
+        <div class="scene-wrap"><canvas class="scene" id="sceneR" width="112" height="256"></canvas></div>
+        <div class="bandrail" id="railR"></div>
+      </div>
+      <div class="strip" id="stripR"></div>
+      <p class="character"><b>Softer, naturalistic, more ramps.</b> 64 colours give clean 3-value rock ramps per band with headroom to spare. Reads as a believable earthy cave — gems glow rather than scream. Costs you nothing extra; the trade is a bigger palette to stay disciplined within.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Endesga-32</h2>
+        <span class="count">tighter · punchier</span>
+      </div>
+      <div class="scene-row">
+        <div class="scene-wrap"><canvas class="scene" id="sceneE" width="112" height="256"></canvas></div>
+        <div class="bandrail" id="railE"></div>
+      </div>
+      <div class="strip" id="stripE"></div>
+      <p class="character"><b>Higher-contrast, arcade, fewer decisions.</b> 32 colours push more saturation into everything — gems pop harder, but five band ramps + six gems + hazards have to share a tight box, so bands sit closer together in value. Cleaner to manage, less naturalistic.</p>
+    </div>
+  </div>
+
+  <div class="look">
+    <h3>What to look for in each scene</h3>
+    <ul>
+      <li><span class="dot" style="background:#c7c2b0"></span><span><b>The halo telegraph</b> — the darker, tighter-grained ring of rock hugging each vein. You should <em>see</em> the rock harden a beat before you break into the gem.</span></li>
+      <li><span class="dot" style="background:#f9822b"></span><span><b>Lava glows through the dark</b> — even where the darkness overlay is heaviest near the bottom, the hot pocket stays bright. Darkness can't hide a hazard that emits its own light.</span></li>
+      <li><span class="dot" style="background:var(--gold)"></span><span><b>The prize gem glints at the edge of vision</b> — bottom-right, deepest and darkest band. Its gold cross-glint pierces the overlay while ordinary gems dim. That single readable sparkle is the glimpsed-prize hook.</span></li>
+      <li><span class="dot" style="background:var(--cyan)"></span><span><b>Gems survive the darkness</b> — because they carry the only saturated pixels, tier colours stay distinguishable as the view radius shrinks. That's the reserve-saturation rule paying off.</span></li>
+    </ul>
+  </div>
+
+  <footer>
+    Hex values are my working recall of the two Lospec palettes — <b>illustrative, not canonical</b>. Both ship as one-click imports in <code>Pixelorama</code>, so you'd load the exact swatches there. Rock texture here is generated procedurally (seeded noise dither) — a preview of the code-gen tile path, not hand-placed pixels. Bands top→bottom: Topsoil · Clay · Sandstone · Granite · Bedrock.
+  </footer>
+</div>
+
+<script>
+(function () {
+  // ---- Palettes (illustrative recall) ----
+  const RES = ['#2e222f','#3e3546','#625565','#966c6c','#ab947a','#694f62','#7f708a','#9babb2','#c7dcd0','#ffffff','#6e2727','#b33831','#ea4f36','#f57d4a','#ae2334','#e83b3b','#fb6b1d','#f79617','#f9c22b','#7a3045','#9e4539','#cd683d','#e6904e','#fbb954','#4c3e24','#676633','#a2a947','#d5e04b','#fbff86','#165a4c','#239063','#1ebc73','#91db69','#cddf6c','#313638','#374e4a','#547e64','#92a984','#b2ba90','#0b5e65','#0b8a8f','#0eaf9b','#30e1b9','#8ff8e2','#323353','#484a77','#4d65b4','#4d9be6','#8fd3ff','#45293f','#6b3e75','#905ea9','#a884f3','#eaaded','#753c54','#a24b6f','#cf657f','#ed8099','#831c5d','#c32454','#f04f78','#f68181','#fca790','#fdcbb0'];
+  const EDG = ['#be4a2f','#d77643','#ead4aa','#e4a672','#b86f50','#733e39','#3e2731','#a22633','#e43b44','#f77622','#feae34','#fee761','#63c74d','#3e8948','#265c42','#193c3e','#124e89','#0099db','#2ce8f5','#ffffff','#c0cbdc','#8b9bb4','#5a6988','#3a4466','#262b44','#181425','#ff0044','#68386c','#b55088','#f6757a','#e8b796','#c28569'];
+
+  // role maps: bands = [dark, mid, light]; gems = [core, hi]; lava = [outer, mid, core]
+  const R = {
+    bands: [
+      ['#694f62','#966c6c','#ab947a'], // topsoil warm brown
+      ['#45293f','#753c54','#a24b6f'], // clay maroon
+      ['#4c3e24','#7a5a34','#b09256'], // sandstone ochre
+      ['#2e222f','#3e3546','#625565'], // granite grey
+      ['#1a1622','#242038','#323353'], // bedrock cold black
+    ],
+    gems: { t1:['#d5e04b','#fbff86'], t2:['#4d9be6','#8fd3ff'], t3:['#1ebc73','#30e1b9'], t4:['#905ea9','#a884f3'], t5:['#e83b3b','#f68181'], prize:['#f9c22b','#fbff86'] },
+    lava: ['#6e2727','#ea4f36','#f9c22b'],
+    night: '#0d0a14',
+  };
+  const E = {
+    bands: [
+      ['#733e39','#b86f50','#e8b796'], // topsoil
+      ['#3e2731','#733e39','#a22633'], // clay
+      ['#b86f50','#e4a672','#ead4aa'], // sandstone
+      ['#3a4466','#5a6988','#8b9bb4'], // granite
+      ['#181425','#262b44','#3a4466'], // bedrock
+    ],
+    gems: { t1:['#fee761','#ffffff'], t2:['#0099db','#2ce8f5'], t3:['#3e8948','#63c74d'], t4:['#b55088','#f6757a'], t5:['#e43b44','#f6757a'], prize:['#feae34','#fee761'] },
+    lava: ['#a22633','#f77622','#feae34'],
+    night: '#100c1a',
+  };
+
+  const TS = 16, W = 7, H = 16;
+
+  // features in tile coords
+  const FEATS = [
+    { x:2, y:2,  gem:'t1' },
+    { x:5, y:4,  gem:'t2' },
+    { x:1, y:7,  gem:'t3' },
+    { x:4, y:9,  gem:'t4' },
+    { x:2, y:12, gem:'t5' },
+    { x:5, y:14, gem:'prize' },
+  ];
+  const LAVA = { x:5, y:11 };
+
+  function bandOf(ty){ return ty<3?0:ty<6?1:ty<9?2:ty<12?3:4; }
+
+  function haloSet(){
+    const s = new Set();
+    for (const f of FEATS){
+      for (let dx=-1; dx<=1; dx++) for (let dy=-1; dy<=1; dy++){
+        if (dx===0 && dy===0) continue;
+        const nx=f.x+dx, ny=f.y+dy;
+        if (nx>=0&&nx<W&&ny>=0&&ny<H) s.add(nx+','+ny);
+      }
+    }
+    // don't halo a tile that itself holds a gem
+    for (const f of FEATS) s.delete(f.x+','+f.y);
+    return s;
+  }
+
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+  function hexToRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+
+  function drawScene(canvas, P){
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(TS*W, TS*H);
+    const D = img.data;
+    const halos = haloSet();
+
+    function px(x,y,rgb,a){
+      if (x<0||y<0||x>=TS*W||y>=TS*H) return;
+      const i=(y*TS*W+x)*4;
+      if (a===undefined) a=1;
+      D[i]   = D[i]*(1-a)   + rgb[0]*a;
+      D[i+1] = D[i+1]*(1-a) + rgb[1]*a;
+      D[i+2] = D[i+2]*(1-a) + rgb[2]*a;
+      D[i+3] = 255;
+    }
+
+    // --- rock ---
+    for (let ty=0; ty<H; ty++){
+      const band = P.bands[bandOf(ty)];
+      for (let tx=0; tx<W; tx++){
+        const isHalo = halos.has(tx+','+ty);
+        const rng = mulberry32((tx*73856093) ^ (ty*19349663) ^ (P===R?1013904223:2654435761));
+        const dark = hexToRgb(band[0]), mid = hexToRgb(band[1]), light = hexToRgb(band[2]);
+        for (let yy=0; yy<TS; yy++) for (let xx=0; xx<TS; xx++){
+          const r = rng();
+          let c;
+          if (isHalo){
+            // tighter grain, darker: telegraph
+            c = r<0.46 ? dark : r>0.9 ? mid : mix(dark,mid,0.5);
+          } else {
+            c = r<0.20 ? dark : r>0.82 ? light : mid;
+          }
+          px(tx*TS+xx, ty*TS+yy, c);
+        }
+        // halo rim: darkest 1px frame to read as a hard ring
+        if (isHalo){
+          for (let k=0;k<TS;k++){
+            px(tx*TS+k, ty*TS,      dark, .55);
+            px(tx*TS+k, ty*TS+TS-1, dark, .55);
+            px(tx*TS,   ty*TS+k,    dark, .55);
+            px(tx*TS+TS-1, ty*TS+k, dark, .55);
+          }
+        }
+      }
+    }
+
+    // subtle band separators
+    for (const by of [3,6,9,12]){
+      for (let x=0;x<TS*W;x++) px(x, by*TS, [0,0,0], .28);
+    }
+
+    // --- lava pocket ---
+    drawLava(px, LAVA.x*TS+8, LAVA.y*TS+8, P.lava);
+
+    // --- gems ---
+    for (const f of FEATS){
+      drawGem(px, f.x*TS+8, f.y*TS+8, P.gems[f.gem], f.gem==='prize');
+    }
+
+    // --- darkness overlay (view radius shrinks with depth) ---
+    const night = hexToRgb(P.night);
+    for (let ty=0; ty<H; ty++){
+      const a = Math.max(0, Math.min(1,(ty-4)/9)) * 0.88;
+      if (a<=0) continue;
+      for (let yy=0; yy<TS; yy++) for (let tx=0; tx<W; tx++) for (let xx=0; xx<TS; xx++){
+        px(tx*TS+xx, ty*TS+yy, night, a);
+      }
+    }
+
+    // --- glints pierce the dark: redraw hazard + gem highlights on top ---
+    drawLava(px, LAVA.x*TS+8, LAVA.y*TS+8, P.lava, 0.9); // lava self-lit
+    for (const f of FEATS){
+      const dark = Math.max(0, Math.min(1,(f.y-4)/9));
+      if (f.gem==='prize'){
+        drawGem(px, f.x*TS+8, f.y*TS+8, P.gems[f.gem], true, 1); // full brightness
+        drawGlint(px, f.x*TS+8, f.y*TS+8, hexToRgb(P.gems.prize[1]));
+      } else if (dark>0.15){
+        // gem core + highlight poke through partially
+        drawGem(px, f.x*TS+8, f.y*TS+8, P.gems[f.gem], false, 0.55);
+      }
+    }
+
+    ctx.putImageData(img, 0, 0);
+
+    function mix(a,b,t){ return [a[0]*(1-t)+b[0]*t, a[1]*(1-t)+b[1]*t, a[2]*(1-t)+b[2]*t]; }
+
+    function drawGem(pxf, cx, cy, pair, big, alpha){
+      const core = hexToRgb(pair[0]), hi = hexToRgb(pair[1]), out=[8,6,14];
+      const rad = big?6:5;
+      if (alpha===undefined) alpha=1;
+      for (let dy=-rad-1; dy<=rad+1; dy++) for (let dx=-rad-1; dx<=rad+1; dx++){
+        const m = Math.abs(dx)+Math.abs(dy);
+        if (m===rad+1) pxf(cx+dx, cy+dy, out, alpha);          // outline
+        else if (m<=rad){
+          let c = core;
+          if (dx<0 && dy<0 && m<=rad-2) c = hi;                 // upper-left facet
+          pxf(cx+dx, cy+dy, c, alpha);
+        }
+      }
+      // sparkle
+      pxf(cx-2, cy-2, [255,255,255], alpha);
+      if (big){ pxf(cx-2, cy-1, hi, alpha); pxf(cx-1, cy-2, hi, alpha); }
+    }
+
+    function drawGlint(pxf, cx, cy, rgb){
+      for (let d=2; d<=6; d++){
+        const a = 0.95 - d*0.12;
+        pxf(cx+d, cy, rgb, a); pxf(cx-d, cy, rgb, a);
+        pxf(cx, cy+d, rgb, a); pxf(cx, cy-d, rgb, a);
+      }
+      pxf(cx,cy,[255,255,255],1);
+    }
+
+    function drawLava(pxf, cx, cy, tri, boost){
+      const o=hexToRgb(tri[0]), m=hexToRgb(tri[1]), c=hexToRgb(tri[2]);
+      const a = boost===undefined?1:boost;
+      for (let dy=-8; dy<=8; dy++) for (let dx=-8; dx<=8; dx++){
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if (dist>8.2) continue;
+        let col = dist<3? c : dist<6? m : o;
+        pxf(cx+dx, cy+dy, col, dist>6? a*0.85 : a);
+      }
+    }
+  }
+
+  // build band rail + strip
+  function rail(el, P){
+    const names=['Topsoil','Clay','Sandstone','Granite','Bedrock'];
+    el.innerHTML = names.map((n,i)=>`<div class="b"><span class="sw" style="background:${P.bands[i][1]}"></span><span class="nm">${n}</span></div>`).join('');
+  }
+  function strip(el, arr){
+    el.innerHTML = arr.map(h=>`<i style="background:${h}" title="${h}"></i>`).join('');
+  }
+
+  drawScene(document.getElementById('sceneR'), R);
+  drawScene(document.getElementById('sceneE'), E);
+  rail(document.getElementById('railR'), R);
+  rail(document.getElementById('railE'), E);
+  strip(document.getElementById('stripR'), RES);
+  strip(document.getElementById('stripE'), EDG);
+})();
+</script>
