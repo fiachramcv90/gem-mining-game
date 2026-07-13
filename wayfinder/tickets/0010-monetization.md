@@ -3,7 +3,7 @@ id: 0010
 title: "Monetization decision"
 type: grilling
 status: open
-assignee:
+assignee: fiachramcv90
 blocked-by: [0006]
 ---
 
