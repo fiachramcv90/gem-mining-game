@@ -3,7 +3,7 @@ id: 0014
 title: "Final spec assembly"
 type: task
 status: open
-assignee:
+assignee: fiachramcv90
 blocked-by: [0012, 0013]
 ---
 
