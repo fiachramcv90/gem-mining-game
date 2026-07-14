@@ -24,18 +24,21 @@ jobs:
   review:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    env:
+      # secrets can't be referenced in step `if:` directly — bridge via env.
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - name: Note when review is switched off
-        if: ${{ secrets.ANTHROPIC_API_KEY == '' }}
+        if: ${{ env.HAS_KEY != 'true' }}
         run: echo "ANTHROPIC_API_KEY secret not set — skipping Claude review (add the secret to enable)."
 
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.HAS_KEY == 'true' }}
         with:
           fetch-depth: 0
 
       - name: Claude review
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.HAS_KEY == 'true' }}
         uses: anthropics/claude-code-action@f1bd27ca5b54584506e40e17884d90bdaaa1a9b3 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
