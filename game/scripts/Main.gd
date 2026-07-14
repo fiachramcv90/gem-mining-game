@@ -31,6 +31,9 @@ func _on_run_lost(_reason: String) -> void:
 func _draw() -> void:
 	# Grey-box sky + surface line so "above ground" reads at a glance.
 	var half_w := GameState.world.shaft_width * GameState.world.tile_px * 0.6
-	draw_rect(Rect2(Vector2(-half_w, -2000.0), Vector2(half_w * 2.0, 2000.0)),
-			Color(0.45, 0.62, 0.78), true)
+	draw_rect(
+		Rect2(Vector2(-half_w, -2000.0), Vector2(half_w * 2.0, 2000.0)),
+		Color(0.45, 0.62, 0.78),
+		true
+	)
 	draw_line(Vector2(-half_w, 0), Vector2(half_w, 0), Color(0.25, 0.2, 0.12), 2.0)

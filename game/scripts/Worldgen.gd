@@ -30,6 +30,7 @@ func _init(cfg: WorldgenConfig, seed_value: int) -> void:
 
 # --- tile codes: kind<<8 | aux (aux = band for rock/halo, tier for gems) ----
 
+
 static func make_code(kind: int, aux: int = 0) -> int:
 	return (kind << 8) | aux
 
@@ -69,6 +70,7 @@ func hardness_at(y: int, code: int) -> float:
 
 
 # --- chunk generation --------------------------------------------------------
+
 
 func chunk_cells(cc: Vector2i) -> Dictionary:
 	## All non-air tiles of a chunk: {Vector2i world tile -> code}.
@@ -136,6 +138,7 @@ func _is_cave(x: int, y: int) -> bool:
 
 # --- veins (spec §3): 2-5 same-tier tiles wrapped in a +1-hardness halo -----
 
+
 func _vein_for_cell(vx: int, vy: int) -> Dictionary:
 	var vc := config.vein_cell_size
 	var mid_y := vy * vc + vc / 2
@@ -162,19 +165,22 @@ func _vein_for_cell(vx: int, vy: int) -> Dictionary:
 
 	# SEAM (later session): the prize gem — a hard singleton nodule, chance
 	# rising gently with depth. Knobs default to 0 so nothing spawns yet.
-	var prize_chance := config.prize_spawn_chance_base \
-			+ config.prize_spawn_chance_depth_gain * depth_frac
+	var prize_chance := (
+		config.prize_spawn_chance_base + config.prize_spawn_chance_depth_gain * depth_frac
+	)
 	if rng.randf() < prize_chance:
 		var pt := Vector2i(
-				rng.randi_range(vx * vc + 1, vx * vc + vc - 2),
-				rng.randi_range(vy * vc + 1, vy * vc + vc - 2))
+			rng.randi_range(vx * vc + 1, vx * vc + vc - 2),
+			rng.randi_range(vy * vc + 1, vy * vc + vc - 2)
+		)
 		return _with_halo({pt: PRIZE_TIER})
 
 	var tier := _pick_tier(rng, depth_frac)
 	var size := rng.randi_range(config.vein_size_min, config.vein_size_max)
 	var start := Vector2i(
-			rng.randi_range(vx * vc + 1, vx * vc + vc - 2),
-			rng.randi_range(vy * vc + 1, vy * vc + vc - 2))
+		rng.randi_range(vx * vc + 1, vx * vc + vc - 2),
+		rng.randi_range(vy * vc + 1, vy * vc + vc - 2)
+	)
 	var tiles := {start: tier}
 	var cur := start
 	var guard := 0
@@ -226,6 +232,7 @@ func _pick_tier(rng: RandomNumberGenerator, depth_frac: float) -> int:
 
 
 # --- deterministic integer hashing -------------------------------------------
+
 
 static func fdiv(a: int, b: int) -> int:
 	return (a - posmod(a, b)) / b

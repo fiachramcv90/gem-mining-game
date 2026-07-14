@@ -21,12 +21,14 @@ func build_envelope() -> Dictionary:
 	return {
 		"save_version": SAVE_VERSION,
 		"world_seed": GameState.world_seed,
-		"world": {
+		"world":
+		{
 			"dug": GameState.dug.duplicate(),
 			"collected": collected,
 		},
 		"wallet": Wallet.money,
-		"upgrades": {
+		"upgrades":
+		{
 			"drill": Upgrades.levels["drill"],
 			"fuel": Upgrades.levels["fuel"],
 			"cargo": Upgrades.levels["cargo"],
@@ -35,8 +37,8 @@ func build_envelope() -> Dictionary:
 			"hoist": Upgrades.hoist,
 		},
 		"run": null,
-		"stats": {},        # 0012 — later session
-		"milestones": {},   # 0012 — later session
+		"stats": {},  # 0012 — later session
+		"milestones": {},  # 0012 — later session
 		"nudges": {"audio_hint_shown": false, "a2hs_dismissed": 0},  # 0013
 		"meta": {"saved_at": 0, "play_secs": 0, "schema_note": "vertical slice"},
 	}

@@ -28,13 +28,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fast first line of defence: GDScript lint + format check (gdtoolkit) on
+  # the real game only — prototype/ and smoke-test/ are frozen throwaways.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install gdtoolkit
+        run: pip install "gdtoolkit==4.*"
+      - name: gdlint
+        run: gdlint game/
+      - name: gdformat check
+        run: gdformat --check game/
+
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Godot 4.3 (with export templates)
-        uses: chickensoft-games/setup-godot@v2
+        uses: chickensoft-games/setup-godot@f166999204a4f2722c6fe042fbaa3b3ea0d9c789 # v2
         with:
           version: 4.3.0
           use-dotnet: false
@@ -103,17 +116,17 @@ jobs:
           echo "--- site/smoke/ ---"; ls -la site/smoke
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
         with:
           enablement: true
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
 
   deploy:
-    needs: build
+    needs: [lint, build]
     # Only the default branch may deploy to the github-pages environment.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -123,4 +136,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

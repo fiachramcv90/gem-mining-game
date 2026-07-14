@@ -1,0 +1,8 @@
+# Keep the GitHub Actions supply chain patched — the only real dependency
+# surface of this repo (the shipped game has no package dependencies).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

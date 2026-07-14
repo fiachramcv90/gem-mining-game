@@ -6,8 +6,6 @@ extends CanvasLayer
 ## direction is spec §7. process_mode is ALWAYS so hub buttons work while the
 ## tree is paused.
 
-@onready var stick: VirtualStick = $VirtualStick
-
 var _readout: Control
 var _hub_button: Button
 var _hub_panel: PanelContainer
@@ -15,6 +13,8 @@ var _hub_wallet: Label
 var _hub_cargo: Label
 var _lost_panel: PanelContainer
 var _lost_reason: Label
+
+@onready var stick: VirtualStick = $VirtualStick
 
 
 func _ready() -> void:
@@ -41,12 +41,14 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	_hub_button.visible = GameState.depth == 0 and not _hub_panel.visible \
-			and not _lost_panel.visible
+	_hub_button.visible = (
+		GameState.depth == 0 and not _hub_panel.visible and not _lost_panel.visible
+	)
 	_readout.queue_redraw()
 
 
 # --- readout: fuel / hull / cargo / depth / wallet ---------------------------
+
 
 func _draw_readout() -> void:
 	var font := ThemeDB.fallback_font
@@ -68,12 +70,27 @@ func _draw_readout() -> void:
 	var cargo_text := "CARGO %d/%d" % [GameState.cargo.size(), Upgrades.cargo_slots()]
 	if GameState.cargo.size() >= Upgrades.cargo_slots():
 		cargo_text += "  HOLD FULL"
-	_readout.draw_string(font, Vector2(12, 72), cargo_text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
-	_readout.draw_string(font, Vector2(12, 92), "DEPTH %dm" % GameState.depth,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
-	_readout.draw_string(font, Vector2(12, 112), "$%d" % Wallet.money,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1.0, 0.85, 0.4))
+	_readout.draw_string(
+		font, Vector2(12, 72), cargo_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE
+	)
+	_readout.draw_string(
+		font,
+		Vector2(12, 92),
+		"DEPTH %dm" % GameState.depth,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		14,
+		Color.WHITE
+	)
+	_readout.draw_string(
+		font,
+		Vector2(12, 112),
+		"$%d" % Wallet.money,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		14,
+		Color(1.0, 0.85, 0.4)
+	)
 
 
 func _bar(pos: Vector2, label: String, frac: float, color: Color, font: Font) -> void:
@@ -81,11 +98,13 @@ func _bar(pos: Vector2, label: String, frac: float, color: Color, font: Font) ->
 	_readout.draw_rect(Rect2(pos, size), Color(0, 0, 0, 0.55), true)
 	_readout.draw_rect(Rect2(pos, Vector2(size.x * clampf(frac, 0.0, 1.0), size.y)), color, true)
 	_readout.draw_rect(Rect2(pos, size), Color(1, 1, 1, 0.5), false, 1.0)
-	_readout.draw_string(font, pos + Vector2(4, 11), label,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.9))
+	_readout.draw_string(
+		font, pos + Vector2(4, 11), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 1, 1, 0.9)
+	)
 
 
 # --- placeholder surface hub --------------------------------------------------
+
 
 func _build_hub_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -158,6 +177,7 @@ func _refresh_hub_labels() -> void:
 
 
 # --- the single run-lost outcome (spec §1) ------------------------------------
+
 
 func _build_lost_panel() -> PanelContainer:
 	var panel := PanelContainer.new()

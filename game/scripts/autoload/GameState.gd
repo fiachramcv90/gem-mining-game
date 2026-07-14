@@ -24,8 +24,8 @@ var world_seed: int = 0
 # --- run state (the three pressures) ----------------------------------------
 var fuel: float = 0.0
 var hull: float = 0.0
-var cargo: Array[int] = []   # carried gem tiers; 1 gem = 1 slot, any tier
-var depth: int = 0           # player depth in tiles below the surface
+var cargo: Array[int] = []  # carried gem tiers; 1 gem = 1 slot, any tier
+var depth: int = 0  # player depth in tiles below the surface
 
 # --- persistent-mine deltas (spec §13): the save stores only these ----------
 ## Vector2i chunk coords -> PackedByteArray dug bitmask (1 bit per tile).
@@ -114,13 +114,20 @@ func sell_cargo() -> void:
 func refuel_repair() -> void:
 	## Cost is plumbed but pinned to zero (spec §1) — a per-run sink could be
 	## switched on later without a refactor.
-	var cost := int(ceil((Upgrades.fuel_capacity() - fuel) * economy.refuel_cost_per_unit \
-			+ (Upgrades.hull_capacity() - hull) * economy.repair_cost_per_hp))
+	var cost := int(
+		ceil(
+			(
+				(Upgrades.fuel_capacity() - fuel) * economy.refuel_cost_per_unit
+				+ (Upgrades.hull_capacity() - hull) * economy.repair_cost_per_hp
+			)
+		)
+	)
 	if Wallet.try_spend(cost):
 		top_up()
 
 
 # --- dug/collected deltas ----------------------------------------------------
+
 
 func chunk_of(tile: Vector2i) -> Vector2i:
 	var cs := world.chunk_size

@@ -7,8 +7,17 @@ extends Node2D
 ## on re-entry. Resident count is constant with depth. Generation is
 ## incremental (chunks_per_frame_budget) — single-threaded web.
 
-@onready var rock: TileMapLayer = $Rock
-@onready var pickups_root: Node2D = $Pickups
+# Atlas columns: 0-4 band rock, 5-9 band halo, 10-14 gems T1-T5,
+# 15 prize, 16 bedrock. Grey-box colours; real art direction is spec §7.
+const ATLAS_TILES := 17
+const BAND_COLORS: Array[Color] = [
+	Color8(152, 112, 72),  # Topsoil — warm/light
+	Color8(138, 92, 66),  # Clay
+	Color8(120, 98, 74),  # Sandstone
+	Color8(96, 88, 86),  # Granite
+	Color8(70, 72, 84),  # Bedrock band — cold/dark
+]
+const BEDROCK_COLOR := Color8(34, 32, 40)
 
 var player: Node2D
 var worldgen: Worldgen
@@ -20,17 +29,8 @@ var _chunk_codes := {}
 var _chunk_pickups := {}
 var _gen_queue: Array[Vector2i] = []
 
-# Atlas columns: 0-4 band rock, 5-9 band halo, 10-14 gems T1-T5,
-# 15 prize, 16 bedrock. Grey-box colours; real art direction is spec §7.
-const ATLAS_TILES := 17
-const BAND_COLORS: Array[Color] = [
-	Color8(152, 112, 72),   # Topsoil — warm/light
-	Color8(138, 92, 66),    # Clay
-	Color8(120, 98, 74),    # Sandstone
-	Color8(96, 88, 86),     # Granite
-	Color8(70, 72, 84),     # Bedrock band — cold/dark
-]
-const BEDROCK_COLOR := Color8(34, 32, 40)
+@onready var rock: TileMapLayer = $Rock
+@onready var pickups_root: Node2D = $Pickups
 
 
 func _ready() -> void:
@@ -64,8 +64,10 @@ func _physics_process(_delta: float) -> void:
 	# Nearest chunks first: the player must never outrun generation.
 	var cs := worldgen.config.chunk_size * worldgen.config.tile_px
 	var pc := player.global_position / float(cs)
-	_gen_queue.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return (Vector2(a) - pc).length_squared() < (Vector2(b) - pc).length_squared())
+	_gen_queue.sort_custom(
+		func(a: Vector2i, b: Vector2i) -> bool:
+			return (Vector2(a) - pc).length_squared() < (Vector2(b) - pc).length_squared()
+	)
 	var budget := worldgen.config.chunks_per_frame_budget
 	while budget > 0 and not _gen_queue.is_empty():
 		var cc: Vector2i = _gen_queue.pop_front()
@@ -82,11 +84,13 @@ func _desired_chunks() -> Dictionary:
 	var margin := cfg.resident_margin
 	var center := player.global_position
 	var c0 := Vector2i(
-			Worldgen.fdiv(int(floor(center.x - half_view.x)), int(chunk_px)) - margin,
-			Worldgen.fdiv(int(floor(center.y - half_view.y)), int(chunk_px)) - margin)
+		Worldgen.fdiv(int(floor(center.x - half_view.x)), int(chunk_px)) - margin,
+		Worldgen.fdiv(int(floor(center.y - half_view.y)), int(chunk_px)) - margin
+	)
 	var c1 := Vector2i(
-			Worldgen.fdiv(int(floor(center.x + half_view.x)), int(chunk_px)) + margin,
-			Worldgen.fdiv(int(floor(center.y + half_view.y)), int(chunk_px)) + margin)
+		Worldgen.fdiv(int(floor(center.x + half_view.x)), int(chunk_px)) + margin,
+		Worldgen.fdiv(int(floor(center.y + half_view.y)), int(chunk_px)) + margin
+	)
 	var out := {}
 	for cy in range(c0.y, c1.y + 1):
 		for cx in range(c0.x, c1.x + 1):
@@ -104,8 +108,10 @@ func _generate_chunk(cc: Vector2i) -> void:
 			# uncollected gem returns as a pickup (spec §1: full-hold gems
 			# stay in the ground).
 			var kind := Worldgen.kind_of(code)
-			if (kind == Worldgen.Kind.GEM or kind == Worldgen.Kind.PRIZE) \
-					and not GameState.is_collected(tile):
+			if (
+				(kind == Worldgen.Kind.GEM or kind == Worldgen.Kind.PRIZE)
+				and not GameState.is_collected(tile)
+			):
 				_spawn_pickup(cc, tile, Worldgen.aux_of(code))
 			continue
 		codes[tile] = code
@@ -125,6 +131,7 @@ func _free_chunk(cc: Vector2i) -> void:
 
 
 # --- drill-facing API ---------------------------------------------------------
+
 
 func code_at(tile: Vector2i) -> int:
 	var cc := GameState.chunk_of(tile)
@@ -178,6 +185,7 @@ func _spawn_pickup(cc: Vector2i, tile: Vector2i, tier: int) -> void:
 
 # --- runtime grey-box TileSet -------------------------------------------------
 
+
 func _build_tile_set() -> TileSet:
 	var px: int = GameState.world.tile_px
 	var img := Image.create(ATLAS_TILES * px, px, false, Image.FORMAT_RGBA8)
@@ -200,9 +208,9 @@ func _build_tile_set() -> TileSet:
 	# TileData only knows the set's physics layers once the source is bound.
 	_source_id = ts.add_source(src)
 	var half := px * 0.5
-	var full_rect := PackedVector2Array([
-		Vector2(-half, -half), Vector2(half, -half),
-		Vector2(half, half), Vector2(-half, half)])
+	var full_rect := PackedVector2Array(
+		[Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)]
+	)
 	for i in range(ATLAS_TILES):
 		src.create_tile(Vector2i(i, 0))
 		var td := src.get_tile_data(Vector2i(i, 0), 0)
