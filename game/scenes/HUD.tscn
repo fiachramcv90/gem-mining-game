@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/HUD.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/VirtualStick.gd" id="2_stick"]
+
+[node name="HUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_hud")
+
+[node name="VirtualStick" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("2_stick")

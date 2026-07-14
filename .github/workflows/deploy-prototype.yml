@@ -1,22 +1,21 @@
-name: Deploy prototype + iOS smoke test to Pages
+name: Deploy game + prototypes to Pages
 
-# Builds the single-threaded Godot web exports (ticket 0002) and publishes them
-# to GitHub Pages. TWO throwaway builds share one Pages site:
-#   * the 0004 dig-feel prototype  -> served at  /        (prototype/)
-#   * the 0011 iOS smoke test      -> served at  /smoke/  (smoke-test/)
-# They are combined into one uploaded directory so neither clobbers the other.
+# Builds the single-threaded Godot web exports (spec §11) and publishes them
+# to GitHub Pages. THREE builds share one Pages site:
+#   * the REAL GAME (vertical slice)   -> served at  /            (game/)
+#   * the 0004 dig-feel prototype      -> served at  /prototype/  (prototype/)
+#   * the 0011 iOS smoke test          -> served at  /smoke/      (smoke-test/)
+# The prototype and smoke test are throwaways kept until spec §16's profiling
+# no longer needs them.
 #
-# Builds/verifies the exports on any listed push; only DEPLOYS from the default
-# branch, because the github-pages environment only permits deployments from
-# main. Other branches build/verify only (proves the export configs are valid
-# before merge).
+# Builds/verify on any listed push; only DEPLOYS from the default branch,
+# because the github-pages environment only permits deployments from main.
 
 on:
   push:
     branches:
       - main
-      - claude/gem-miner-dig-feel-0004-f2wuc8
-      - claude/gem-miner-ios-smoke-0011-xcglyw
+      - claude/gem-miner-build-slice-01-3pxq20
   workflow_dispatch:
 
 permissions:
@@ -29,23 +28,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fast first line of defence: GDScript lint + format check (gdtoolkit) on
+  # the real game only — prototype/ and smoke-test/ are frozen throwaways.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install gdtoolkit
+        run: pip install "gdtoolkit==4.*"
+      - name: gdlint
+        run: gdlint game/
+      - name: gdformat check
+        run: gdformat --check game/
+
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Godot 4.3 (with export templates)
-        uses: chickensoft-games/setup-godot@v2
+        uses: chickensoft-games/setup-godot@f166999204a4f2722c6fe042fbaa3b3ea0d9c789 # v2
         with:
           version: 4.3.0
           use-dotnet: false
           include-templates: true
 
+      - name: Export game (vertical slice, single-threaded + PWA)
+        run: |
+          cd game
+          mkdir -p build
+          # first pass imports resources, second pass exports
+          godot --headless --import || true
+          godot --headless --export-release "Web" build/index.html
+          ls -la build
+
+      # Actually RUN the game scene headless so any parse/runtime script error
+      # (which the export step compiles-and-packs right past, never executing)
+      # is caught here — spec §14 calls this gate load-bearing: a bad API call
+      # is a parse error that silently kills the scene on device otherwise.
+      - name: Headless game run (gate on script errors)
+        run: |
+          cd game
+          timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log || true
+          # Stricter than the smoke gate: any engine ERROR line fails too
+          # (a collision-less TileSet once sailed through as "no script error").
+          if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function|^ERROR:" run.log; then
+            echo "::error::game scene logged an error (see above) — not deploying"
+            exit 1
+          fi
+          echo "game scene loaded and ran clean (no errors)"
+
       - name: Export dig-feel prototype (0004, single-threaded)
         run: |
           cd prototype
           mkdir -p build
-          # first pass imports resources, second pass exports
           godot --headless --import || true
           godot --headless --export-release "Web" build/index.html
           ls -la build
@@ -58,11 +94,6 @@ jobs:
           godot --headless --export-release "Web" build/index.html
           ls -la build
 
-      # Actually RUN the smoke scene headless so any parse/runtime script error
-      # (which the export step compiles-and-packs right past, never executing)
-      # is caught here — a bad OS.* vs RenderingServer.* call is a parse error
-      # that silently kills the scene on device otherwise. This is a GATE: the
-      # build fails if the scene logs a script error.
       - name: Headless smoke-run (gate on script errors)
         run: |
           cd smoke-test
@@ -73,27 +104,29 @@ jobs:
           fi
           echo "smoke-test scene loaded clean (no script errors)"
 
-      - name: Assemble Pages site (prototype at /, smoke test at /smoke/)
+      - name: Assemble Pages site (game at /, prototype at /prototype/, smoke at /smoke/)
         run: |
           rm -rf site
-          mkdir -p site/smoke
-          cp -r prototype/build/. site/
+          mkdir -p site/prototype site/smoke
+          cp -r game/build/. site/
+          cp -r prototype/build/. site/prototype/
           cp -r smoke-test/build/. site/smoke/
           echo "--- site/ ---"; ls -la site
+          echo "--- site/prototype/ ---"; ls -la site/prototype
           echo "--- site/smoke/ ---"; ls -la site/smoke
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
         with:
           enablement: true
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
 
   deploy:
-    needs: build
+    needs: [lint, build]
     # Only the default branch may deploy to the github-pages environment.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -103,4 +136,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

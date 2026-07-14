@@ -1,0 +1,73 @@
+name: Claude PR review
+
+# Automatic spec-aware code review on every non-draft PR, run by Claude
+# (Sonnet). INERT until the ANTHROPIC_API_KEY repo secret is added — every
+# step is skipped when the secret is absent, so the check stays green and
+# free until switched on. Complements (never replaces) the headless-run
+# gate: this reads diffs, the gate runs the game.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  actions: read
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    env:
+      # secrets can't be referenced in step `if:` directly — bridge via env.
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Note when review is switched off
+        if: ${{ env.HAS_KEY != 'true' }}
+        run: echo "ANTHROPIC_API_KEY secret not set — skipping Claude review (add the secret to enable)."
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        if: ${{ env.HAS_KEY == 'true' }}
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        if: ${{ env.HAS_KEY == 'true' }}
+        uses: anthropics/claude-code-action@f1bd27ca5b54584506e40e17884d90bdaaa1a9b3 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--model claude-sonnet-5"
+          prompt: |
+            Review PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            This repo is the Gem Miner game. The BINDING spec is
+            wayfinder/assets/0014-final-spec.md and the domain glossary is
+            CONTEXT.md — read both before reviewing. Check the diff against
+            the spec's standing disciplines, in priority order:
+
+            1. Every tunable is a named @export knob with Appendix A's
+               default — flag any magic number in game/ code.
+            2. Deterministic worldgen: chunk content must stay a pure
+               function of (world_seed, coords) — flag any runtime randf()/
+               randi() outside seed generation at new-game.
+            3. The bounded resident window (spec §12) must not regress:
+               nothing may retain per-chunk data outside the window.
+            4. iOS-safe web constraints (spec §11): single-threaded, no
+               SharedArrayBuffer, no runtime audio bus effects, no
+               AudioStreamGenerator.
+            5. Godot 4.3 API only — a later-4.x call is a parse error that
+               silently kills the scene on device.
+            6. Names must match CONTEXT.md's terms exactly.
+            7. Ordinary correctness: real bugs, unhandled edge cases.
+
+            Post a single concise review comment: lead with anything that
+            breaks a discipline or is a real bug (file:line), then at most
+            a short list of lesser suggestions. If the diff is clean, say
+            so briefly — do not pad. Do not comment on grey-box art or
+            stubbed seams the PR itself declares as later-session work.
