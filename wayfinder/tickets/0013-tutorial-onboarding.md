@@ -2,8 +2,8 @@
 id: 0013
 title: "Tutorial & onboarding"
 type: grilling
-status: open
-assignee:
+status: closed
+assignee: fiachramcv90
 blocked-by: [0003, 0004, 0008, 0009]
 ---
 
@@ -38,3 +38,37 @@ with sound off (0008), so onboarding must assume silent players; bias small
 (solo dev). The [0004 prototype](../prototype/) /
 [live build](https://fiachramcv90.github.io/gem-mining-game/) is the
 reference for what the first 10 seconds actually feel like.
+
+## Resolution
+
+Onboarding is **two text lines, one gauge behaviour, and two nudges** —
+nothing gates play, zero modals, every beat lands silent, no new art, and the
+whole thing costs **one `nudges` save key with two fields**. Full arrangement
+in the [design note](../assets/0013-tutorial-onboarding.md).
+
+- **Controls** ([0004](0004-dig-feel-controls.md)) — one **ghost line** on the
+  first descent (*"push to fly · hold into rock to dig"*), self-dismissing on
+  the first dig (~10 s backstop). First-run is **derived** from an empty
+  dug-delta in the save — no dismissal flag.
+- **Round-trip fuel** ([0003](0003-core-loop.md)) — taught diegetically,
+  permanently: the fuel-gauge pulse (0008's juice table) is pinned
+  **round-trip aware** — it fires when remaining fuel approaches the estimated
+  ascent cost from current depth (threshold multiplier = an `@export` knob),
+  plus a permanent **death-reason line** on the run-lost screen (*"ran dry
+  below ground — the climb home costs fuel too"*). No mid-run tutorial text;
+  the cheap first lesson (shallow early runs) does the rest. No save flag.
+- **Add-to-Home-Screen** ([0009](0009-save-system.md)) — a new permanent
+  **💾 save-safety corner** in the hub (opposite [0010](0010-monetization.md)'s
+  ♥ corner) opens a non-blocking panel: install how-to + 0009's save
+  export/import (their permanent home). The **nudge** is a temporary callout
+  label on that glyph, triggered the first time the save holds something worth
+  missing (**first sell or first run lost**), persisting until installed or
+  dismissed, re-shown **once** after a later run lost, suppressed when
+  standalone. Persisted as `nudges.a2hs_dismissed` (int 0–2).
+- **Silent-switch** ([0008](0008-art-audio.md) /
+  [0011](0011-ios-smoke-test.md)) — static caption under the tap prompt,
+  **first session only** (strict reading of 0008's "shown once"), retired by
+  `nudges.audio_hint_shown: true`; the game-starting tap dismisses it.
+
+**Final hub census** (complete, for 0014): sell · refuel/repair · upgrade ·
+descend + Miner's Log button + ♥ Support corner + 💾 save-safety corner.
