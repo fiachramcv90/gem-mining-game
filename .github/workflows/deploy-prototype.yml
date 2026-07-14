@@ -57,11 +57,13 @@ jobs:
         run: |
           cd game
           timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log || true
-          if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function" run.log; then
-            echo "::error::game scene logged a script error (see above) — not deploying"
+          # Stricter than the smoke gate: any engine ERROR line fails too
+          # (a collision-less TileSet once sailed through as "no script error").
+          if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function|^ERROR:" run.log; then
+            echo "::error::game scene logged an error (see above) — not deploying"
             exit 1
           fi
-          echo "game scene loaded and ran clean (no script errors)"
+          echo "game scene loaded and ran clean (no errors)"
 
       - name: Export dig-feel prototype (0004, single-threaded)
         run: |

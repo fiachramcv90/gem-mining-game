@@ -196,6 +196,9 @@ func _build_tile_set() -> TileSet:
 	var src := TileSetAtlasSource.new()
 	src.texture = ImageTexture.create_from_image(img)
 	src.texture_region_size = Vector2i(px, px)
+	# The source must be added to the TileSet BEFORE tiles get collision:
+	# TileData only knows the set's physics layers once the source is bound.
+	_source_id = ts.add_source(src)
 	var half := px * 0.5
 	var full_rect := PackedVector2Array([
 		Vector2(-half, -half), Vector2(half, -half),
@@ -205,7 +208,6 @@ func _build_tile_set() -> TileSet:
 		var td := src.get_tile_data(Vector2i(i, 0), 0)
 		td.add_collision_polygon(0)
 		td.set_collision_polygon_points(0, 0, full_rect)
-	_source_id = ts.add_source(src)
 	return ts
 
 
