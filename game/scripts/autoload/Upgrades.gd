@@ -55,6 +55,12 @@ func _prices_for(track: String) -> PackedInt32Array:
 	return PackedInt32Array()
 
 
+func max_level(track: String) -> int:
+	## Highest reachable level for a track (L0 is the free starting kit, so
+	## the price array's length IS the max level).
+	return _prices_for(track).size()
+
+
 func next_price(track: String) -> int:
 	## Price of the next level for a track, or -1 if maxed.
 	var prices := _prices_for(track)
@@ -62,6 +68,21 @@ func next_price(track: String) -> int:
 	if level >= prices.size():
 		return -1
 	return _eco().price_of(prices, level)
+
+
+func hoist_cost() -> int:
+	return int(round(_eco().hoist_price * _eco().price_scale))
+
+
+func hoist_available() -> bool:
+	## The aspirational Hoist surfaces in the shop only once Drill/Fuel/Cargo
+	## are deep (spec §4); "deep" is the hoist_reveal_min_level knob.
+	var min_level: int = _eco().hoist_reveal_min_level
+	return (
+		levels["drill"] >= min_level
+		and levels["fuel"] >= min_level
+		and levels["cargo"] >= min_level
+	)
 
 
 func buy(track: String) -> bool:
@@ -74,7 +95,7 @@ func buy(track: String) -> bool:
 
 
 func buy_hoist() -> bool:
-	if hoist or not Wallet.try_spend(int(round(_eco().hoist_price * _eco().price_scale))):
+	if hoist or not Wallet.try_spend(hoist_cost()):
 		return false
 	hoist = true
 	upgrades_changed.emit()

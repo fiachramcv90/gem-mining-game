@@ -8,9 +8,12 @@ extends Node2D
 
 
 func _ready() -> void:
-	# SEAM: SaveManager.load (spec §13) is a later session — every boot is a
-	# fresh world for now.
-	GameState.new_game()
+	# Load-on-boot (spec §13): a valid save restores the persistent mine;
+	# absent or corrupt (world_seed missing) starts a new game — whose seed
+	# is snapshotted immediately so it survives the very first tab close.
+	if not SaveManager.load_game():
+		GameState.new_game()
+		SaveManager.save_now()
 	mine.setup(Worldgen.new(GameState.world, GameState.world_seed))
 	mine.player = player
 	player.mine = mine

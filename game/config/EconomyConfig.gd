@@ -29,6 +29,9 @@ extends Resource
 @export var light_price := PackedInt32Array([150, 450, 1200])
 @export var hoist_price := 5000
 @export var hoist_ascent_factor := 0.5
+## The Hoist is aspirational (spec §4): it surfaces in the shop only once
+## Drill, Fuel, AND Cargo have all reached this level.
+@export var hoist_reveal_min_level := 3
 
 # --- fuel consumption (0006): the round-trip budget -------------------------
 @export var fuel_descent_per_tile := 0.4

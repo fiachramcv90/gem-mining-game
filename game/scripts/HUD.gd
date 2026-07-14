@@ -1,16 +1,21 @@
 class_name HUD
 extends CanvasLayer
-## The three-pressures HUD (spec §1) + the placeholder surface hub (sell ·
-## refuel/repair · descend — the full hub census §9 is a later session) and
-## the single run-lost outcome screen. Built in code: grey-box UI, real art
-## direction is spec §7. process_mode is ALWAYS so hub buttons work while the
-## tree is paused.
+## The three-pressures HUD (spec §1) + the surface hub — the §9 census: the
+## four core actions (sell · refuel/repair · upgrade · descend) plus the 💾
+## save-safety corner (Log/♥ corners are later sessions) — and the single
+## run-lost outcome screen. Built in code: grey-box UI, real art direction
+## is spec §7. process_mode is ALWAYS so hub buttons work while the tree is
+## paused.
 
 var _readout: Control
 var _hub_button: Button
 var _hub_panel: Control
 var _hub_wallet: Label
 var _hub_cargo: Label
+var _sell_button: Button
+var _shop: UpgradeShop
+var _shop_panel: Control
+var _save_corner: SaveCorner
 var _lost_panel: Control
 var _lost_reason: Label
 
@@ -34,15 +39,27 @@ func _ready() -> void:
 	_hub_panel = _build_hub_panel()
 	add_child(_hub_panel)
 
+	_shop = UpgradeShop.new()
+	_shop.closed.connect(_close_shop)
+	_shop_panel = _center_wrap(_shop)
+	add_child(_shop_panel)
+
+	_save_corner = SaveCorner.new()
+	add_child(_save_corner)
+
 	_lost_panel = _build_lost_panel()
 	add_child(_lost_panel)
 
 	GameState.run_lost.connect(_on_run_lost)
+	GameState.cargo_sold.connect(_on_cargo_sold)
 
 
 func _process(_delta: float) -> void:
 	_hub_button.visible = (
-		GameState.depth == 0 and not _hub_panel.visible and not _lost_panel.visible
+		GameState.depth == 0
+		and not _hub_panel.visible
+		and not _shop_panel.visible
+		and not _lost_panel.visible
 	)
 	_readout.queue_redraw()
 
@@ -138,15 +155,11 @@ func _build_hub_panel() -> Control:
 	_hub_cargo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_hub_cargo)
 
-	vbox.add_child(_hub_action("SELL CARGO", _on_sell))
+	_sell_button = _hub_action("SELL CARGO", _on_sell)
+	vbox.add_child(_sell_button)
 	vbox.add_child(_hub_action("REFUEL + REPAIR (free)", _on_refuel))
+	vbox.add_child(_hub_action("UPGRADES", _open_shop))
 	vbox.add_child(_hub_action("DESCEND", _close_hub))
-
-	var note := Label.new()
-	note.text = "upgrades arrive next session"
-	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	note.add_theme_font_size_override("font_size", 11)
-	vbox.add_child(note)
 	return _center_wrap(panel)
 
 
@@ -169,9 +182,20 @@ func _close_hub() -> void:
 	get_tree().paused = false
 
 
+func _open_shop() -> void:
+	_hub_panel.visible = false
+	_shop.refresh()
+	_shop_panel.visible = true
+
+
+func _close_shop() -> void:
+	_shop_panel.visible = false
+	_refresh_hub_labels()
+	_hub_panel.visible = true
+
+
 func _on_sell() -> void:
 	GameState.sell_cargo()
-	_refresh_hub_labels()
 
 
 func _on_refuel() -> void:
@@ -179,9 +203,42 @@ func _on_refuel() -> void:
 	_refresh_hub_labels()
 
 
+func _on_cargo_sold(value: int) -> void:
+	## The sell celebration (session-1 device feedback): the ratchet must
+	## READ — a "+$" float over a gold pop on the banked total. Grey-box;
+	## the full juice pass is spec §7.
+	_refresh_hub_labels()
+	if value <= 0:
+		return
+	_flash_banked(value)
+
+
+func _flash_banked(value: int) -> void:
+	var float_label := Label.new()
+	float_label.text = "+$%d" % value
+	float_label.add_theme_font_size_override("font_size", 22)
+	float_label.modulate = Color(1.0, 0.85, 0.3)
+	float_label.position = Vector2(_hub_wallet.size.x * 0.5 - 24.0, -12.0)
+	_hub_wallet.add_child(float_label)
+	var rise := create_tween()
+	rise.set_parallel(true)
+	rise.tween_property(float_label, "position:y", -40.0, 1.1)
+	rise.tween_property(float_label, "modulate:a", 0.0, 1.1).set_ease(Tween.EASE_IN)
+	rise.chain().tween_callback(float_label.queue_free)
+
+	_hub_wallet.pivot_offset = _hub_wallet.size * 0.5
+	var pop := create_tween()
+	pop.set_parallel(true)
+	pop.tween_property(_hub_wallet, "scale", Vector2.ONE, 0.4).from(Vector2(1.4, 1.4))
+	pop.tween_property(_hub_wallet, "modulate", Color.WHITE, 0.6).from(Color(1.0, 0.85, 0.3))
+
+
 func _refresh_hub_labels() -> void:
-	_hub_wallet.text = "wallet  $%d" % Wallet.money
-	_hub_cargo.text = "cargo  %d gems worth $%d" % [GameState.cargo.size(), GameState.cargo_value()]
+	_hub_wallet.text = "banked  $%d" % Wallet.money
+	var value := GameState.cargo_value()
+	_hub_cargo.text = "cargo  %d gems worth $%d" % [GameState.cargo.size(), value]
+	_sell_button.text = "SELL CARGO — $%d" % value
+	_sell_button.disabled = GameState.cargo.is_empty()
 
 
 # --- the single run-lost outcome (spec §1) ------------------------------------
