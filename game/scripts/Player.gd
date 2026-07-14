@@ -26,6 +26,12 @@ var _drill_cell := Vector2i(-9999, -9999)
 var _drill_progress := 0.0
 var _prev_y_tiles := 0.0
 
+# Fall tracking (spec §5): anchor y where the drop began, whether an upward
+# thrust-brace was held at any point during it.
+var _falling := false
+var _braced := false
+var _fall_start_y := 0.0
+
 
 func _ready() -> void:
 	add_to_group("digger")
@@ -35,6 +41,7 @@ func respawn() -> void:
 	global_position = spawn_position
 	velocity = Vector2.ZERO
 	_prev_y_tiles = spawn_position.y / tile_px()
+	_falling = false
 	_reset_drill()
 	if stick != null:
 		stick.reset()
@@ -58,6 +65,7 @@ func _physics_process(delta: float) -> void:
 	velocity = velocity.limit_length(max_speed)
 	move_and_slide()
 
+	_track_fall(intent)
 	_do_dig(intent, delta)
 	_account_fuel()
 	queue_redraw()
@@ -71,6 +79,37 @@ func _current_intent() -> Vector2:
 	if stick != null:
 		return stick.intent()
 	return Vector2.ZERO
+
+
+# --- falls (spec §5, Act I): drill into a cave and drop -----------------------
+
+
+func _track_fall(intent: Vector2) -> void:
+	## Distance-based fall damage: a fall runs from the y where support was
+	## lost to the landing. Thrusting up mid-fall is the brace; fully
+	## arresting the drop (velocity turns upward) escapes it damage-free.
+	## Runs AFTER move_and_slide so landings are read from this frame's
+	## collisions (a landing zeroes velocity.y — the landed check must win).
+	var landed := false
+	for i in range(get_slide_collision_count()):
+		if get_slide_collision(i).get_normal().y < -0.7:
+			landed = true
+	if _falling:
+		if intent.y < -intent_threshold:
+			_braced = true
+		if landed:
+			var tiles := (global_position.y - _fall_start_y) / tile_px()
+			# Hazards live in the mine (spec §5) — landing on the surface
+			# ground (depth 0) is safe, so hub bounces never chip the hull.
+			if global_position.y > 0.0:
+				GameState.apply_fall_damage(tiles, _braced)
+			_falling = false
+		elif velocity.y <= 0.0:
+			_falling = false
+	elif not landed and velocity.y / tile_px() > GameState.hazards.fall_min_speed_tiles:
+		_falling = true
+		_braced = false
+		_fall_start_y = global_position.y
 
 
 # --- hold-to-drill ------------------------------------------------------------

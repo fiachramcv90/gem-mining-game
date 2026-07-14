@@ -8,13 +8,15 @@ signal fuel_changed(value: float, cap: float)
 signal hull_changed(value: float, cap: float)
 signal cargo_changed(count: int, slots: int)
 signal depth_changed(depth: int)
+signal cargo_sold(value: int)
 signal run_lost(reason: String)
 
-## The two config resources (Appendix A). Loaded once; every derived value
+## The three config resources (Appendix A). Loaded once; every derived value
 ## (drill time, capacities) is computed from (config, upgrades, depth) —
 ## never stored (spec §10).
 var economy: EconomyConfig = preload("res://config/economy.tres")
 var world: WorldgenConfig = preload("res://config/worldgen.tres")
+var hazards: HazardConfig = preload("res://config/hazards.tres")
 
 ## Per-player seed, fixed at new-game (spec §3). The one sanctioned use of
 ## runtime randomness: generating the seed itself. SaveManager persists it
@@ -70,11 +72,37 @@ func drain_fuel(amount: float) -> void:
 
 
 func apply_hazard_damage(amount: float) -> void:
-	## SEAM: hazards (spec §5) are a later session; this is their entry point.
+	## The single hazard entry point (spec §5): every hazard lands its hull
+	## damage here. Falls are live (Act I); gas/cave-ins/lava are later acts.
 	hull = maxf(0.0, hull - amount)
 	hull_changed.emit(hull, float(Upgrades.hull_capacity()))
 	if hull <= 0.0:
 		lose_run("hull breached")
+
+
+func apply_fall_damage(tiles_fallen: float, brace_held: bool) -> void:
+	## Falls (spec §5, Act I): grace <= fall_grace_tiles free, then
+	## fall_dmg_per_tile per tile ~linear, capped at fall_dmg_cap_frac of
+	## CURRENT hull (scales with upgrades — serious but survivable, never a
+	## one-shot). A thrust-brace cuts damage x fall_light_brace_factor, but
+	## only when the drop was SEEN in the light (§6: darkness scales hazard
+	## hit probability; the lit view radius is the dodge).
+	var over := tiles_fallen - float(hazards.fall_grace_tiles)
+	if over <= 0.0:
+		return
+	var dmg := minf(over * hazards.fall_dmg_per_tile, hazards.fall_dmg_cap_frac * hull)
+	if brace_held and tiles_fallen <= lit_view_radius():
+		dmg *= hazards.fall_light_brace_factor
+	apply_hazard_damage(dmg)
+
+
+func lit_view_radius() -> float:
+	## The darkness base curve (spec §6) x the Light track, in tiles: a pure
+	## function of (config, upgrades, depth). The darkness renderer (later
+	## session) will draw exactly this; falls consume it now — a brace only
+	## counts if the landing was inside the lit radius.
+	var shrink := world.shrink_rate_per_depth * float(depth) * Upgrades.light_mult()
+	return maxf(world.min_floor_radius, world.surface_view_radius - shrink)
 
 
 func lose_run(reason: String) -> void:
@@ -106,9 +134,14 @@ func cargo_value() -> int:
 
 
 func sell_cargo() -> void:
-	Wallet.add(cargo_value())
+	## Selling converts cargo to banked Wallet money and empties the hold —
+	## the ratchet's fuel (CONTEXT.md). A surface event: SaveManager snapshots
+	## on cargo_sold (spec §13).
+	var value := cargo_value()
+	Wallet.add(value)
 	cargo.clear()
 	cargo_changed.emit(0, Upgrades.cargo_slots())
+	cargo_sold.emit(value)
 
 
 func refuel_repair() -> void:
