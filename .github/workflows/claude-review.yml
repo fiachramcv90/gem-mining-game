@@ -32,7 +32,7 @@ jobs:
         if: ${{ env.HAS_KEY != 'true' }}
         run: echo "ANTHROPIC_API_KEY secret not set — skipping Claude review (add the secret to enable)."
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         if: ${{ env.HAS_KEY == 'true' }}
         with:
           fetch-depth: 0
