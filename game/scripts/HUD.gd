@@ -8,10 +8,10 @@ extends CanvasLayer
 
 var _readout: Control
 var _hub_button: Button
-var _hub_panel: PanelContainer
+var _hub_panel: Control
 var _hub_wallet: Label
 var _hub_cargo: Label
-var _lost_panel: PanelContainer
+var _lost_panel: Control
 var _lost_reason: Label
 
 @onready var stick: VirtualStick = $VirtualStick
@@ -106,12 +106,20 @@ func _bar(pos: Vector2, label: String, frac: float, color: Color, font: Font) ->
 # --- placeholder surface hub --------------------------------------------------
 
 
-func _build_hub_panel() -> PanelContainer:
+func _center_wrap(panel: Control) -> Control:
+	## True centring at any viewport size: a full-rect CenterContainer that
+	## ignores mouse itself (the stick keeps working around the panel).
+	var wrap := CenterContainer.new()
+	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.visible = false
+	wrap.add_child(panel)
+	return wrap
+
+
+func _build_hub_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.visible = false
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(70, 240)
-	panel.size = Vector2(300, 320)
+	panel.custom_minimum_size = Vector2(300, 0)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 14)
@@ -139,7 +147,7 @@ func _build_hub_panel() -> PanelContainer:
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	note.add_theme_font_size_override("font_size", 11)
 	vbox.add_child(note)
-	return panel
+	return _center_wrap(panel)
 
 
 func _hub_action(label: String, handler: Callable) -> Button:
@@ -179,11 +187,9 @@ func _refresh_hub_labels() -> void:
 # --- the single run-lost outcome (spec §1) ------------------------------------
 
 
-func _build_lost_panel() -> PanelContainer:
+func _build_lost_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.visible = false
-	panel.position = Vector2(45, 300)
-	panel.size = Vector2(350, 200)
+	panel.custom_minimum_size = Vector2(320, 0)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
@@ -207,7 +213,7 @@ func _build_lost_panel() -> PanelContainer:
 	vbox.add_child(detail)
 
 	vbox.add_child(_hub_action("BACK TO THE SURFACE", _dismiss_lost))
-	return panel
+	return _center_wrap(panel)
 
 
 func _on_run_lost(reason: String) -> void:
