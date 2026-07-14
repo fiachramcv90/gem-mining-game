@@ -141,6 +141,28 @@ prize gem banked, first lost run…). **Honorific-only**: a milestone pays
 recognition — a banner and a permanent entry in the **Miner's Log** — never
 money, currency, or capability. Unearned milestones are hidden.
 
+## Nudge
+
+A temporary, non-blocking prompt suggesting an action outside the game loop
+(install the app, flip the silent switch). Never a modal, never gates play;
+its dismissal persists in the save.
+
+## Ghost line
+
+A single faded hint line shown in-world that dismisses itself the first time
+the player performs the action it hints at. Onboarding's only mid-run text.
+
+## Round-trip warning
+
+The fuel gauge's pulse when remaining fuel approaches the estimated cost of
+the climb home from the current depth — the always-on, wordless teacher of the
+**round-trip budget**.
+
+## Save-safety corner
+
+The permanent quiet element of the **surface hub** housing everything that
+protects the save: Add-to-Home-Screen instructions and save export/import.
+
 ## Hoist
 
 The aspirational fast-travel upgrade: it shortens (and cheapens the **fuel** cost
