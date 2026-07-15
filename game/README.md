@@ -30,8 +30,9 @@ one `Area2D` contact volume with per-chunk shapes freed with the resident
 window, `lava_tick_dmg` per `lava_tick_interval` while inside; lava GLOWS —
 the second self-lit §6 exception, the darkness shader's glint path
 generalised to cut the overlay open out to `lava_glow_radius`); the
-unbreakable side walls now continue `surface_wall_height` tiles above the
-surface line so the shaft reads as a walled pit from above (feedback #2);
+unbreakable side walls now continue above the surface line — unbounded, so
+the shaft is a pit between two cliffs that can never be flown over
+(feedback #2, retuned after on-device play found a finite rim hoppable);
 ascent fuel stepped down 1.0 → 0.7 (feedback #5, owner decision).
 
 **Stubbed seams (later sessions):** Hoist ascent payoff polish, best-effort

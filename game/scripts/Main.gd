@@ -35,10 +35,14 @@ func _on_run_lost(_reason: String) -> void:
 
 
 func _draw() -> void:
-	# Grey-box sky + surface line so "above ground" reads at a glance.
-	var half_w := GameState.world.shaft_width * GameState.world.tile_px * 0.6
+	# Grey-box sky + surface line so "above ground" reads at a glance. The
+	# sky spans well past the shaft: the unbounded side walls (feedback #2)
+	# draw over it, so the cliff tops read against blue, never the clear
+	# colour.
+	var shaft_w := GameState.world.shaft_width * GameState.world.tile_px
+	var half_w := shaft_w * 0.5
 	draw_rect(
-		Rect2(Vector2(-half_w, -2000.0), Vector2(half_w * 2.0, 2000.0)),
+		Rect2(Vector2(-shaft_w * 3.0, -2000.0), Vector2(shaft_w * 6.0, 2000.0)),
 		Color(0.45, 0.62, 0.78),
 		true
 	)

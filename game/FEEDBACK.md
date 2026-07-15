@@ -7,9 +7,27 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-15 — session-4 on-device report (wall rim hoppable)
+
+### Item #2 again: "I can just fly up and over the edges"
+
+Confirmed on-device with a screenshot: the first fix's finite
+`surface_wall_height` (4) was not a wall — because everything outside the
+shaft is already solid bedrock, raising it 4 tiles just made a raised RIM
+the digger can hop onto and cross. The "harmless" call in the entry below
+was wrong on-device. **Applied fix:** the side walls above the surface are
+now UNBOUNDED — every above-surface row outside the shaft is bedrock in
+`Worldgen.chunk_cells`, so the mine is a pit between two cliffs that can
+never be flown over, however high you climb. The `surface_wall_height`
+knob is removed: the boundary is geometry, not a tunable (noted in
+WorldgenConfig where the knob lived). Still deterministic worldgen; the
+resident window stays bounded (above-surface wall chunks cost the same as
+any underground chunk). The grey-box sky rect in `Main._draw` widened so
+the cliff tops read against blue, not the clear colour.
+
 ## 2026-07-15 — session-4 build (cave-ins, lava, walls, ascent step)
 
-### Item #2 (side walls) — APPLIED
+### Item #2 (side walls) — APPLIED, superseded by the entry above
 
 The unbreakable side walls now continue `surface_wall_height` (default 4)
 tiles above the surface line — one new WorldgenConfig knob, deterministic
@@ -17,7 +35,8 @@ worldgen (the wall tiles are plain bedrock codes from `chunk_cells`). The
 shaft reads as a walled pit from above; sideways flight at the surface now
 has a boundary. You can still fly OVER the wall top and land on the bedrock
 plain outside the shaft — harmless, and the pit still reads. Judge the
-height on-device.
+height on-device. *(On-device verdict: not harmless — see the report
+above; the walls are now unbounded and the knob is gone.)*
 
 ### Item #5 (ascent fuel) — APPLIED, stepped not halved
 
