@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/VirtualStick.gd" id="2_stick"]
 
 [node name="HUD" type="CanvasLayer"]
+layer = 2
 process_mode = 3
 script = ExtResource("1_hud")
 

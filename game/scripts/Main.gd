@@ -5,6 +5,7 @@ extends Node2D
 @onready var mine: Mine = $Mine
 @onready var player: Player = $Player
 @onready var hud: HUD = $HUD
+@onready var darkness: DarknessOverlay = $DarknessLayer/Darkness
 
 
 func _ready() -> void:
@@ -14,10 +15,12 @@ func _ready() -> void:
 	if not SaveManager.load_game():
 		GameState.new_game()
 		SaveManager.save_now()
-	mine.setup(Worldgen.new(GameState.world, GameState.world_seed))
+	mine.setup(Worldgen.new(GameState.world, GameState.hazards, GameState.world_seed))
 	mine.player = player
 	player.mine = mine
 	player.stick = hud.stick
+	darkness.player = player
+	darkness.mine = mine
 	var px := float(GameState.world.tile_px)
 	player.spawn_position = Vector2(px * 0.5, -3.0 * px)
 	GameState.run_lost.connect(_on_run_lost)

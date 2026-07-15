@@ -98,9 +98,10 @@ func apply_fall_damage(tiles_fallen: float, brace_held: bool) -> void:
 
 func lit_view_radius() -> float:
 	## The darkness base curve (spec §6) x the Light track, in tiles: a pure
-	## function of (config, upgrades, depth). The darkness renderer (later
-	## session) will draw exactly this; falls consume it now — a brace only
-	## counts if the landing was inside the lit radius.
+	## function of (config, upgrades, depth). The darkness renderer draws
+	## exactly this disc — buying Light visibly pushes the dark back — and
+	## falls consume it too: a brace only counts if the landing was inside
+	## the lit radius.
 	var shrink := world.shrink_rate_per_depth * float(depth) * Upgrades.light_mult()
 	return maxf(world.min_floor_radius, world.surface_view_radius - shrink)
 
