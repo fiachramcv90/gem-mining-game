@@ -7,6 +7,18 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-15 — session-3 tuning (darkness curve)
+
+### Darkness encroaches too deep (~230); wanted ~150
+
+**Applied.** `shrink_rate_per_depth` 0.016 → 0.025 (one WorldgenConfig
+knob). First visible corner-darkening now lands ~depth 150 (faint hints
+from ~90 via the soft edge). Knock-on, both acceptable: the lit radius
+reaches its 2.5-tile floor at ~depth 460 (start of Bedrock) instead of
+never quite reaching it, so all of Bedrock plays at max darkness; and
+Light L3 now yields a ~9.6-tile radius at the bottom instead of ~11.2 —
+the Light payoff reads even stronger against the darker baseline.
+
 ## 2026-07-15 — session-2 build (falls, shop, save; pre-darkness/gas)
 
 ### 1. Floaty flight makes hull damage easy to avoid

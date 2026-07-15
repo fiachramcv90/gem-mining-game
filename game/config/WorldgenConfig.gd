@@ -55,7 +55,10 @@ extends Resource
 
 # --- darkness base curve (spec §6) — LIVE: the darkness renderer draws it ----
 @export var surface_view_radius := 14.0
-@export var shrink_rate_per_depth := 0.016
+## On-device tuned (session 3): 0.025 puts first visible encroachment at
+## ~depth 150 (screen corners sit ~10.25 tiles out at the phone viewport);
+## the original 0.016 draft kept the dark invisible until ~230 — too deep.
+@export var shrink_rate_per_depth := 0.025
 @export var min_floor_radius := 2.5
 @export var prize_glint_radius := 10.0
 ## Implementation knobs of the §6 renderer (not Appendix A): the soft edge
