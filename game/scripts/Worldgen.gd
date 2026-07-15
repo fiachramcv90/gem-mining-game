@@ -96,8 +96,9 @@ func chunk_cells(cc: Vector2i) -> Dictionary:
 	var cs := config.chunk_size
 	var base := cc * cs
 	var out := {}
-	if base.y + cs <= -config.surface_wall_height:
-		return out  # entirely above the surface walls: open sky
+	var shaft_half := config.shaft_width / 2
+	if base.y + cs <= 0 and base.x >= -shaft_half and base.x + cs <= shaft_half:
+		return out  # above the surface AND inside the shaft: open sky
 
 	# Veins are laid out on a deterministic vein-cell grid. A vein (and its
 	# halo) can reach 2 tiles past its cell, so gather every cell whose
@@ -114,18 +115,17 @@ func chunk_cells(cc: Vector2i) -> Dictionary:
 				gems.merge(vein["gems"])
 				halos.merge(vein["halo"])
 
-	var half := config.shaft_width / 2
 	for ly in range(cs):
 		var y := base.y + ly
-		if y < -config.surface_wall_height:
-			continue
 		for lx in range(cs):
 			var x := base.x + lx
 			if y < 0:
-				# Above the surface line only the side walls exist: the
-				# unbreakable bedrock continues surface_wall_height tiles up
-				# so the shaft reads as a walled pit from above.
-				if x < -half or x >= half:
+				# Above the surface line only the side walls exist — and they
+				# are UNBOUNDED: every above-surface row outside the shaft is
+				# bedrock, so the mine is a pit between two cliffs that can
+				# never be flown over (on-device feedback #2: a finite rim
+				# was just a ledge to hop).
+				if x < -shaft_half or x >= shaft_half:
 					out[Vector2i(x, y)] = make_code(Kind.BEDROCK)
 				continue
 			var code := _code_at(x, y, gems, halos)
