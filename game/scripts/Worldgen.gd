@@ -7,7 +7,7 @@ extends RefCounted
 ## same tile always generates the same way.
 
 ## Tile kinds. AIR tiles are never stored in the TileMapLayer.
-enum Kind { AIR, ROCK, HALO, GEM, PRIZE, BEDROCK }
+enum Kind { AIR, ROCK, HALO, GEM, PRIZE, BEDROCK, GAS }
 
 ## Sentinel "tier" for the prize gem (T1..T5 are 1..5).
 const PRIZE_TIER := 6
@@ -15,12 +15,16 @@ const PRIZE_TIER := 6
 const DIRS: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
 
 var config: WorldgenConfig
+## Gas placement rates live in HazardConfig (Appendix A's hazards section)
+## but placement itself is worldgen — pure of (world_seed, coords).
+var hazards: HazardConfig
 var world_seed: int
 var _cave_noise: FastNoiseLite
 
 
-func _init(cfg: WorldgenConfig, seed_value: int) -> void:
+func _init(cfg: WorldgenConfig, hazard_cfg: HazardConfig, seed_value: int) -> void:
 	config = cfg
+	hazards = hazard_cfg
 	world_seed = seed_value
 	_cave_noise = FastNoiseLite.new()
 	_cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
@@ -115,15 +119,30 @@ func _code_at(x: int, y: int, gems: Dictionary, halos: Dictionary) -> int:
 	var tile := Vector2i(x, y)
 	if gems.has(tile):
 		var tier: int = gems[tile]
-		if tier == PRIZE_TIER:
-			return make_code(Kind.PRIZE, tier)
-		return make_code(Kind.GEM, tier)
+		return make_code(Kind.PRIZE if tier == PRIZE_TIER else Kind.GEM, tier)
 	if _is_cave(x, y):
 		return make_code(Kind.AIR)
 	var band := band_index(y)
 	if halos.has(tile):
 		return make_code(Kind.HALO, band)
+	if _is_gas(x, y, band):
+		return make_code(Kind.GAS, band)
 	return make_code(Kind.ROCK, band)
+
+
+func _is_gas(x: int, y: int, band: int) -> bool:
+	## Gas pockets (spec §5): dig-triggered burst tiles — rare in Clay,
+	## common Sandstone+, none in Topsoil (band 0). Placement is a pure
+	## function of (world_seed, tile) — a per-tile avalanche hash against
+	## gas_encounter_rate[band - 1], never runtime randf(). A dug gas tile
+	## persists through the ordinary dug-bitmask delta: it never regrows,
+	## burst or not.
+	if band < 1:
+		return false
+	var rate := hazards.gas_encounter_rate[band - 1]
+	if rate <= 0.0:
+		return false
+	return _hash01_tile(x, y) < rate
 
 
 func _is_cave(x: int, y: int) -> bool:
@@ -163,8 +182,9 @@ func _vein_for_cell(vx: int, vy: int) -> Dictionary:
 	var lo := Vector2i(vx * vc - 1, vy * vc - 1)
 	var hi := Vector2i(vx * vc + vc, vy * vc + vc)
 
-	# SEAM (later session): the prize gem — a hard singleton nodule, chance
-	# rising gently with depth. Knobs default to 0 so nothing spawns yet.
+	# The prize gem (spec §3): a hard singleton nodule (+2 hardness), chance
+	# low and rising gently with depth; its glint pierces the darkness
+	# (spec §6 — the glimpsed-prize hook).
 	var prize_chance := (
 		config.prize_spawn_chance_base + config.prize_spawn_chance_depth_gain * depth_frac
 	)
@@ -236,6 +256,19 @@ func _pick_tier(rng: RandomNumberGenerator, depth_frac: float) -> int:
 
 static func fdiv(a: int, b: int) -> int:
 	return (a - posmod(a, b)) / b
+
+
+func _hash01_tile(x: int, y: int) -> float:
+	## Per-tile 32-bit avalanche mix of (world_seed, tile coords) mapped to
+	## [0, 1) — a different salt than _hash_cell so gas placement never
+	## correlates with vein placement.
+	var h := (world_seed ^ 0x9E3779B9) & 0xFFFFFFFF
+	h = (h ^ ((x * 0x85EBCA6B) & 0xFFFFFFFF)) & 0xFFFFFFFF
+	h = ((h << 11) | (h >> 21)) & 0xFFFFFFFF
+	h = (h ^ ((y * 0xC2B2AE35) & 0xFFFFFFFF)) & 0xFFFFFFFF
+	h = (h * 0x27D4EB2F) & 0xFFFFFFFF
+	h = (h ^ (h >> 15)) & 0xFFFFFFFF
+	return float(h) / 4294967296.0
 
 
 func _hash_cell(vx: int, vy: int) -> int:

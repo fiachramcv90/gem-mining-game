@@ -1,9 +1,10 @@
 class_name HazardConfig
 extends Resource
 ## Every hazard tunable from the final spec's Appendix A (0007 hazards).
-## Act I ships FALLS live; the gas / cave-in / lava / darkness-hit knobs are
-## declared now as stubs so later acts are slider drags, never schema changes.
-## All values are launch DEFAULTS and stay named @export Inspector knobs.
+## FALLS (Act I) and GAS POCKETS (Acts I/II) are live; the cave-in / lava
+## knobs are declared now as stubs so later acts are slider drags, never
+## schema changes. All values are launch DEFAULTS and stay named @export
+## Inspector knobs.
 
 # --- falls (Act I — LIVE, spec §5) -------------------------------------------
 ## Tiles of free fall before damage starts.
@@ -20,11 +21,13 @@ extends Resource
 ## micro-drift of hover flight out of fall detection.
 @export var fall_min_speed_tiles := 0.5
 
-# --- gas pockets (Acts I/II — STUB, later session) ---------------------------
-## Burst damage by band: Clay / Sandstone / Granite / Bedrock.
+# --- gas pockets (Acts I/II — LIVE, spec §5) ----------------------------------
+## Burst damage by band: Clay / Sandstone / Granite / Bedrock. Darkness never
+## scales damage size — only whether the tell was seen (§6).
 @export var gas_burst_dmg := PackedInt32Array([8, 14, 18, 22])
-## Encounter rate by band (fraction of dug tiles); 0 until gas ships.
-@export var gas_encounter_rate := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+## Placement rate by band (fraction of undug tiles seeded as gas): rare in
+## Clay, common Sandstone+ (spec §5). Topsoil has none by roster.
+@export var gas_encounter_rate := PackedFloat32Array([0.005, 0.02, 0.03, 0.035])
 
 # --- cave-ins (Act II — STUB, later session) ---------------------------------
 ## Damage by band: Granite / Bedrock.
@@ -40,9 +43,11 @@ extends Resource
 ## 0 until lava ships.
 @export var lava_encounter_rate := 0.0
 
-# --- darkness x hazards (STUB until the darkness renderer, spec §6) ----------
-## Hazard hit probability in full dark, by band. Darkness scales hit
-## PROBABILITY, never damage size (§6); tuned when the renderer ships.
+# --- darkness x hazards (spec §6) ---------------------------------------------
+## §6 is implemented as the RENDERING RULE: a hazard's tell is drawn only
+## inside the lit view radius — the darkness renderer IS the dodge mechanic,
+## no dice roll. These full-dark hit fractions stay calibration anchors for
+## tuning encounter rates against the §5 expected-damage curve.
 @export var hazard_hit_frac_dark := PackedFloat32Array([1.0, 1.0, 1.0, 1.0, 1.0])
 
 # --- calibration anchors (spec §5 reconciled contract) ------------------------

@@ -28,9 +28,12 @@ extends Resource
 ## factor per tier of distance from the depth-scaled peak.
 @export var tier_tail_falloff := 0.30
 
-# --- prize gem (spec §3) — SEAM: spawning is a later session, knobs live now -
-@export var prize_spawn_chance_base := 0.0
-@export var prize_spawn_chance_depth_gain := 0.0
+# --- prize gem (spec §3) — LIVE ----------------------------------------------
+## Per vein-cell chance the cell's find is THE prize nodule instead of a
+## vein — low, rising gently with depth. At these defaults a whole mine
+## seeds ~2-3 prizes, most of them deep.
+@export var prize_spawn_chance_base := 0.001
+@export var prize_spawn_chance_depth_gain := 0.003
 
 # --- caves (spec §3): sparse voids, more common and larger with depth --------
 @export var cave_noise_frequency := 0.06
@@ -50,8 +53,16 @@ extends Resource
 @export var pickup_cap := 64
 @export var particle_cap := 8
 
-# --- darkness base curve (spec §6) — SEAM: renderer is a later session -------
+# --- darkness base curve (spec §6) — LIVE: the darkness renderer draws it ----
 @export var surface_view_radius := 14.0
-@export var shrink_rate_per_depth := 0.016
+## On-device tuned (session 3): 0.025 puts first visible encroachment at
+## ~depth 150 (screen corners sit ~10.25 tiles out at the phone viewport);
+## the original 0.016 draft kept the dark invisible until ~230 — too deep.
+@export var shrink_rate_per_depth := 0.025
 @export var min_floor_radius := 2.5
 @export var prize_glint_radius := 10.0
+## Implementation knobs of the §6 renderer (not Appendix A): the soft edge
+## of the lit disc, in tiles, and the overlay's opacity beyond it. Opacity 1
+## IS the tell-hiding contract — outside the light, nothing renders.
+@export var darkness_edge_softness := 1.5
+@export var darkness_max_alpha := 1.0

@@ -8,8 +8,9 @@ extends Node2D
 ## incremental (chunks_per_frame_budget) — single-threaded web.
 
 # Atlas columns: 0-4 band rock, 5-9 band halo, 10-14 gems T1-T5,
-# 15 prize, 16 bedrock. Grey-box colours; real art direction is spec §7.
-const ATLAS_TILES := 17
+# 15 prize, 16 bedrock, 17-20 gas tell for bands Clay-Bedrock.
+# Grey-box colours; real art direction is spec §7.
+const ATLAS_TILES := 21
 const BAND_COLORS: Array[Color] = [
 	Color8(152, 112, 72),  # Topsoil — warm/light
 	Color8(138, 92, 66),  # Clay
@@ -28,6 +29,9 @@ var _source_id := -1
 var _chunk_codes := {}
 var _chunk_pickups := {}
 var _gen_queue: Array[Vector2i] = []
+## Resident undug prize tiles (tile -> true): the darkness renderer draws
+## their glint — the self-lit exception that pierces the dark (spec §6).
+var _prize_tiles := {}
 
 @onready var rock: TileMapLayer = $Rock
 @onready var pickups_root: Node2D = $Pickups
@@ -115,6 +119,8 @@ func _generate_chunk(cc: Vector2i) -> void:
 				_spawn_pickup(cc, tile, Worldgen.aux_of(code))
 			continue
 		codes[tile] = code
+		if Worldgen.kind_of(code) == Worldgen.Kind.PRIZE:
+			_prize_tiles[tile] = true
 		rock.set_cell(tile, _source_id, _atlas_for_code(code))
 	_chunk_codes[cc] = codes
 
@@ -122,6 +128,7 @@ func _generate_chunk(cc: Vector2i) -> void:
 func _free_chunk(cc: Vector2i) -> void:
 	for tile in _chunk_codes[cc].keys():
 		rock.erase_cell(tile)
+		_prize_tiles.erase(tile)
 	_chunk_codes.erase(cc)
 	if _chunk_pickups.has(cc):
 		for p in _chunk_pickups[cc]:
@@ -163,8 +170,35 @@ func dig(tile: Vector2i) -> void:
 	var cc := GameState.chunk_of(tile)
 	if _chunk_codes.has(cc):
 		_chunk_codes[cc].erase(tile)
+	_prize_tiles.erase(tile)
+	if kind == Worldgen.Kind.GAS:
+		_burst_gas(tile, Worldgen.aux_of(code))
 	if kind == Worldgen.Kind.GEM or kind == Worldgen.Kind.PRIZE:
 		_spawn_pickup(cc, tile, Worldgen.aux_of(code))
+
+
+func _burst_gas(tile: Vector2i, band: int) -> void:
+	## Gas burst (spec §5): dig-triggered, damage by band through the single
+	## hazard entry point. Darkness scales whether the tell was SEEN, never
+	## the damage size (§6) — drilling a gas tile always bursts it.
+	GameState.apply_hazard_damage(float(GameState.hazards.gas_burst_dmg[band - 1]))
+	var px := worldgen.config.tile_px
+	var flash := GasBurstFlash.new()
+	flash.position = Vector2(tile) * px + Vector2(px, px) * 0.5
+	add_child(flash)
+
+
+func prize_glint_positions() -> Array[Vector2]:
+	## World positions whose glint pierces the darkness (spec §6): resident
+	## undug prize nodules plus freed-but-uncollected prize pickups.
+	var px := float(worldgen.config.tile_px)
+	var out: Array[Vector2] = []
+	for tile in _prize_tiles.keys():
+		out.append(Vector2(tile) * px + Vector2(px, px) * 0.5)
+	for pickup in pickups_root.get_children():
+		if pickup is GemPickup and pickup.tier == Worldgen.PRIZE_TIER:
+			out.append(pickup.global_position)
+	return out
 
 
 func _spawn_pickup(cc: Vector2i, tile: Vector2i, tier: int) -> void:
@@ -196,6 +230,8 @@ func _build_tile_set() -> TileSet:
 		_paint_gem(img, 10 + i, px, GemPickup.GEM_COLORS[i])
 	_paint_gem(img, 15, px, GemPickup.PRIZE_COLOR)
 	_paint_rock(img, 16, px, BEDROCK_COLOR, false)
+	for i in range(1, 5):
+		_paint_gas(img, 16 + i, px, BAND_COLORS[i])
 
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(px, px)
@@ -233,6 +269,22 @@ func _paint_rock(img: Image, col: int, px: int, color: Color, tight_grain: bool)
 			img.set_pixel(col * px + x, y, c)
 
 
+func _paint_gas(img: Image, col: int, px: int, base: Color) -> void:
+	# The gas tell (spec §5/§7): band rock veined with a sickly green
+	# shimmer tint — reads as not-rock at a glance. The darkness overlay
+	# hides it beyond the lit radius: the tell renders only in the light.
+	var tint := Color8(120, 210, 130)
+	for y in range(px):
+		for x in range(px):
+			var c := base
+			var speckle := (x * 13 + y * 29 + col * 7) % 4
+			if speckle == 0:
+				c = base.lerp(tint, 0.75)
+			elif speckle == 2:
+				c = base.lerp(tint, 0.35).lightened(0.05)
+			img.set_pixel(col * px + x, y, c)
+
+
 func _paint_gem(img: Image, col: int, px: int, color: Color) -> void:
 	var dark := Color8(52, 48, 46)
 	var mid := px / 2
@@ -256,4 +308,6 @@ func _atlas_for_code(code: int) -> Vector2i:
 			return Vector2i(9 + aux, 0)  # tier 1..5 -> cols 10..14
 		Worldgen.Kind.PRIZE:
 			return Vector2i(15, 0)
+		Worldgen.Kind.GAS:
+			return Vector2i(16 + aux, 0)  # band 1..4 -> cols 17..20
 	return Vector2i(16, 0)
