@@ -35,8 +35,11 @@ extends Resource
 
 # --- fuel consumption (0006): the round-trip budget -------------------------
 @export var fuel_descent_per_tile := 0.4
-## The asymmetry that makes the climb home a real budget line.
-@export var fuel_ascent_per_tile := 1.0
+## The asymmetry that makes the climb home a real budget line. On-device
+## tuned (session 4, feedback #5): stepped down from the 0006 draft of 1.0 —
+## the climb home cost less without defusing the round-trip squeeze. 0.5
+## (the suggested halving) stays off the table unless play demands it.
+@export var fuel_ascent_per_tile := 0.7
 ## Charged per tile dug (hover-while-drilling).
 @export var fuel_hover_per_tile := 0.15
 @export var fuel_reserve_margin := 0.12

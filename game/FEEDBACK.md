@@ -7,6 +7,49 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-15 — session-4 build (cave-ins, lava, walls, ascent step)
+
+### Item #2 (side walls) — APPLIED
+
+The unbreakable side walls now continue `surface_wall_height` (default 4)
+tiles above the surface line — one new WorldgenConfig knob, deterministic
+worldgen (the wall tiles are plain bedrock codes from `chunk_cells`). The
+shaft reads as a walled pit from above; sideways flight at the surface now
+has a boundary. You can still fly OVER the wall top and land on the bedrock
+plain outside the shaft — harmless, and the pit still reads. Judge the
+height on-device.
+
+### Item #5 (ascent fuel) — APPLIED, stepped not halved
+
+`fuel_ascent_per_tile` 1.0 → 0.7 (one EconomyConfig knob), the log's
+recommended gentle step rather than the suggested 0.5 — the round-trip
+squeeze must stay a real decision. Knock-ons to re-check against the §4
+pacing targets on-device:
+
+- **Safe round-trip depth per Fuel level rises ~27%** (round-trip cost per
+  tile of depth falls 1.4 → 1.1 + hover): L0's 80 fuel now round-trips to
+  ~64 tiles (was ~50), reaching well into Clay; each later level
+  over-reaches its band floor by the same factor.
+- **The Hoist's ×0.5 relief narrows**: it now saves 0.35 fuel/tile of
+  ascent instead of 0.5 — the 5000 price buys a smaller (but still
+  band-scale) margin. Acceptable while the Hoist stays aspirational;
+  re-judge if it ever feels pointless.
+- If the climb still feels punitive after upgrades flow, the next stop is
+  0.6 — never straight to 0.5.
+
+### Item #1 (fall hull pressure) — re-judged, fall knobs left untouched
+
+Re-judged against the danger model rather than falls alone (an on-device
+feel pass on THIS build should confirm): the session-2 complaint predated
+gas, darkness, cave-ins and lava. Since then, every band from Clay down
+gained damage that flight cannot dodge — only sight can (gas bursts,
+undermined cave-ins), darkness now encroaches from ~150, and Bedrock adds
+lava ticks. Hull pressure no longer rests on falls, so `fall_dmg_per_tile`
+4 / `fall_grace_tiles` 3 stay as specced. If the session-4 build still
+reads toothless on-device, raise `fall_dmg_per_tile` toward 5 or drop
+`fall_grace_tiles` to 2 (HazardConfig knobs) — never touch gravity; the
+0004 floaty feel is validated-by-thumb.
+
 ## 2026-07-15 — session-3 tuning (darkness curve)
 
 ### Darkness encroaches too deep (~230); wanted ~150
@@ -23,7 +66,8 @@ the Light payoff reads even stronger against the darker baseline.
 
 ### 1. Floaty flight makes hull damage easy to avoid
 
-Partly by design — §5 wants danger *telegraphed and dodgeable*, and a
+**Re-judged in session 4** (fall knobs untouched) — see the session-4
+entry. Partly by design — §5 wants danger *telegraphed and dodgeable*, and a
 thrust-arrest escaping a fall damage-free is the intended skill expression.
 But if Hull never feels at risk, the Hull track and the danger acts lose
 their teeth. **Assessment:** session 3's gas pockets add dig-triggered
@@ -36,7 +80,7 @@ should not be re-tuned to fix a hazard problem.
 
 ### 2. You can fly left/right past the mine boundary on the surface
 
-Real gap, not a knob. The unbreakable bedrock walls only exist from y = 0
+**Applied in session 4** — see the session-4 entry. Real gap, not a knob. The unbreakable bedrock walls only exist from y = 0
 down (`Worldgen._code_at` returns early for above-surface rows), so at the
 surface nothing stops sideways flight into empty sky. **Recommended fix
 (small, session 4):** extend the side walls a few tiles above the surface
@@ -60,7 +104,8 @@ Logged so the art session includes hub layout/typography, not just tiles.
 
 ### 5. Ascent fuel feels too expensive (suggestion: halve it)
 
-The 0.4 descent / 1.0 ascent asymmetry is a **closed 0006 decision** and
+**Applied in session 4** (stepped to 0.7, not halved) — see the session-4
+entry. The 0.4 descent / 1.0 ascent asymmetry is a **closed 0006 decision** and
 load-bearing: the climb-home cost IS the round-trip budget, the game's
 central turn-back decision (§1/§4), and the first-hour pacing was
 simulated against these numbers. Halving ascent to 0.5 would roughly

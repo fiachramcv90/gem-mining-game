@@ -18,6 +18,7 @@ on:
       - claude/gem-miner-build-slice-01-3pxq20
       - claude/gem-miner-build-slice-02-4f7z75
       - claude/gem-miner-darkness-gas-spii93
+      - claude/gem-miner-build-slice-04-p5wbwd
   workflow_dispatch:
 
 permissions:

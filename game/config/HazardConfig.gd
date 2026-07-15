@@ -1,10 +1,9 @@
 class_name HazardConfig
 extends Resource
 ## Every hazard tunable from the final spec's Appendix A (0007 hazards).
-## FALLS (Act I) and GAS POCKETS (Acts I/II) are live; the cave-in / lava
-## knobs are declared now as stubs so later acts are slider drags, never
-## schema changes. All values are launch DEFAULTS and stay named @export
-## Inspector knobs.
+## The full roster is live: FALLS (Act I), GAS POCKETS (Acts I/II),
+## CAVE-INS (Act II) and LAVA (Act III). All values are launch DEFAULTS
+## and stay named @export Inspector knobs.
 
 # --- falls (Act I — LIVE, spec §5) -------------------------------------------
 ## Tiles of free fall before damage starts.
@@ -29,19 +28,32 @@ extends Resource
 ## Clay, common Sandstone+ (spec §5). Topsoil has none by roster.
 @export var gas_encounter_rate := PackedFloat32Array([0.005, 0.02, 0.03, 0.035])
 
-# --- cave-ins (Act II — STUB, later session) ---------------------------------
+# --- cave-ins (Act II — LIVE, spec §5) ----------------------------------------
 ## Damage by band: Granite / Bedrock.
 @export var cavein_dmg := PackedInt32Array([15, 25])
-## Encounter rate by band (Granite / Bedrock); 0 until cave-ins ship.
-@export var cavein_encounter_rate := PackedFloat32Array([0.0, 0.0])
+## Placement rate by band (fraction of undug tiles seeded as cracked/unstable
+## rock), Granite / Bedrock only. Placement is a pure per-tile hash of
+## (world_seed, coords) — never runtime randf().
+@export var cavein_encounter_rate := PackedFloat32Array([0.02, 0.03])
+## Implementation knobs (not Appendix A): how long an undermined tile
+## trembles before it drops — the telegraph beat the player gets to move —
+## and how fast the dropped rock falls, in tiles/sec.
+@export var cavein_telegraph_secs := 0.45
+@export var cavein_fall_speed_tiles := 16.0
 
-# --- lava / heat (Act III — STUB, later session) ------------------------------
+# --- lava / heat (Act III — LIVE, spec §5) -------------------------------------
 @export var lava_tick_dmg := 5.0
 @export var lava_tick_interval := 0.2
 ## Lava glows — self-lit through darkness (the fair exception, spec §6).
 @export var lava_glow_radius := 6.0
-## 0 until lava ships.
-@export var lava_encounter_rate := 0.0
+## Bedrock-only placement gate: a tile is lava where its seeded noise
+## channel exceeds (1 - this rate) — 0 disables lava entirely. Like the
+## cave channel, higher = more; the felt fraction is a noise quantile, so
+## tune by eye, not arithmetic.
+@export var lava_encounter_rate := 0.12
+## Implementation knob (not Appendix A): the lava noise channel's frequency
+## — lower = larger, rarer molten pockets.
+@export var lava_noise_frequency := 0.05
 
 # --- darkness x hazards (spec §6) ---------------------------------------------
 ## §6 is implemented as the RENDERING RULE: a hazard's tell is drawn only
