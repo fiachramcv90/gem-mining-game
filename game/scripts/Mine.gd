@@ -8,9 +8,11 @@ extends Node2D
 ## incremental (chunks_per_frame_budget) — single-threaded web.
 
 # Atlas columns: 0-4 band rock, 5-9 band halo, 10-14 gems T1-T5,
-# 15 prize, 16 bedrock, 17-20 gas tell for bands Clay-Bedrock.
+# 15 prize, 16 bedrock, 17-20 gas tell for bands Clay-Bedrock,
+# 21-22 cracked/unstable tell for Granite-Bedrock, 23 lava.
 # Grey-box colours; real art direction is spec §7.
-const ATLAS_TILES := 21
+const ATLAS_TILES := 24
+const LAVA_COLUMN := 23
 const BAND_COLORS: Array[Color] = [
 	Color8(152, 112, 72),  # Topsoil — warm/light
 	Color8(138, 92, 66),  # Clay
@@ -32,6 +34,14 @@ var _gen_queue: Array[Vector2i] = []
 ## Resident undug prize tiles (tile -> true): the darkness renderer draws
 ## their glint — the self-lit exception that pierces the dark (spec §6).
 var _prize_tiles := {}
+## chunk -> Array[Vector2] of resident lava tile centres (world px): the
+## darkness renderer's second self-lit exception, lava's glow (spec §6).
+var _chunk_lava := {}
+## chunk -> Array[CollisionShape2D] inside the one lava Area2D.
+var _chunk_lava_shapes := {}
+## The single Area2D contact volume for all resident lava tiles (spec §5).
+var _lava_volume: Area2D
+var _lava_accum := 0.0
 
 @onready var rock: TileMapLayer = $Rock
 @onready var pickups_root: Node2D = $Pickups
@@ -39,6 +49,11 @@ var _prize_tiles := {}
 
 func _ready() -> void:
 	rock.tile_set = _build_tile_set()
+	_lava_volume = Area2D.new()
+	_lava_volume.collision_layer = 0
+	_lava_volume.collision_mask = 1  # scans for the digger's body layer
+	_lava_volume.monitoring = true
+	add_child(_lava_volume)
 
 
 func setup(gen: Worldgen) -> void:
@@ -53,9 +68,10 @@ func warm_start() -> void:
 			_generate_chunk(cc)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if worldgen == null or player == null:
 		return
+	_tick_lava(delta)
 	var desired := _desired_chunks()
 	for cc in _chunk_codes.keys():
 		if not desired.has(cc):
@@ -121,8 +137,29 @@ func _generate_chunk(cc: Vector2i) -> void:
 		codes[tile] = code
 		if Worldgen.kind_of(code) == Worldgen.Kind.PRIZE:
 			_prize_tiles[tile] = true
+		if Worldgen.kind_of(code) == Worldgen.Kind.LAVA:
+			_add_lava_tile(cc, tile)
 		rock.set_cell(tile, _source_id, _atlas_for_code(code))
 	_chunk_codes[cc] = codes
+
+
+func _add_lava_tile(cc: Vector2i, tile: Vector2i) -> void:
+	# One rect shape per lava tile inside the single Area2D volume; freed
+	# with the chunk, so the physics footprint stays inside the resident
+	# window (spec §12).
+	var px := worldgen.config.tile_px
+	var center := Vector2(tile) * px + Vector2(px, px) * 0.5
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(px, px)
+	shape.shape = rect
+	shape.position = center
+	_lava_volume.add_child(shape)
+	if not _chunk_lava.has(cc):
+		_chunk_lava[cc] = []
+		_chunk_lava_shapes[cc] = []
+	_chunk_lava[cc].append(center)
+	_chunk_lava_shapes[cc].append(shape)
 
 
 func _free_chunk(cc: Vector2i) -> void:
@@ -130,6 +167,12 @@ func _free_chunk(cc: Vector2i) -> void:
 		rock.erase_cell(tile)
 		_prize_tiles.erase(tile)
 	_chunk_codes.erase(cc)
+	if _chunk_lava.has(cc):
+		for shape in _chunk_lava_shapes[cc]:
+			if is_instance_valid(shape):
+				shape.queue_free()
+		_chunk_lava.erase(cc)
+		_chunk_lava_shapes.erase(cc)
 	if _chunk_pickups.has(cc):
 		for p in _chunk_pickups[cc]:
 			if is_instance_valid(p):
@@ -153,7 +196,9 @@ func is_solid(tile: Vector2i) -> bool:
 
 func is_breakable(tile: Vector2i) -> bool:
 	var kind := Worldgen.kind_of(code_at(tile))
-	return kind != Worldgen.Kind.AIR and kind != Worldgen.Kind.BEDROCK
+	return (
+		kind != Worldgen.Kind.AIR and kind != Worldgen.Kind.BEDROCK and kind != Worldgen.Kind.LAVA
+	)
 
 
 func hardness(tile: Vector2i) -> float:
@@ -163,7 +208,7 @@ func hardness(tile: Vector2i) -> float:
 func dig(tile: Vector2i) -> void:
 	var code := code_at(tile)
 	var kind := Worldgen.kind_of(code)
-	if kind == Worldgen.Kind.AIR or kind == Worldgen.Kind.BEDROCK:
+	if kind == Worldgen.Kind.AIR or kind == Worldgen.Kind.BEDROCK or kind == Worldgen.Kind.LAVA:
 		return
 	GameState.mark_dug(tile)
 	rock.erase_cell(tile)
@@ -175,6 +220,50 @@ func dig(tile: Vector2i) -> void:
 		_burst_gas(tile, Worldgen.aux_of(code))
 	if kind == Worldgen.Kind.GEM or kind == Worldgen.Kind.PRIZE:
 		_spawn_pickup(cc, tile, Worldgen.aux_of(code))
+	_check_undermined(tile)
+
+
+# --- cave-ins (spec §5, Act II): undermining cracked rock drops it ------------
+
+
+func _check_undermined(dug_tile: Vector2i) -> void:
+	## The support check, kept simple and legible (spec §5): an unstable tile
+	## falls when the tile DIRECTLY UNDER it is dug out. A vertical run of
+	## cracked rock comes down as one column. Each dropped tile is marked dug
+	## the moment it lets go, so a reload reproduces the outcome from the
+	## ordinary dug delta — the fallen rock shatters, it never resettles.
+	var above := dug_tile + Vector2i.UP
+	while Worldgen.kind_of(code_at(above)) == Worldgen.Kind.UNSTABLE:
+		var band := Worldgen.aux_of(code_at(above))
+		GameState.mark_dug(above)
+		rock.erase_cell(above)
+		var cc := GameState.chunk_of(above)
+		if _chunk_codes.has(cc):
+			_chunk_codes[cc].erase(above)
+		var drop := CaveInRock.new()
+		drop.mine = self
+		drop.band = band
+		var px := worldgen.config.tile_px
+		drop.position = Vector2(above) * px + Vector2(px, px) * 0.5
+		add_child(drop)
+		above += Vector2i.UP
+
+
+# --- lava (spec §5, Act III): contact volume + damage over time ---------------
+
+
+func _tick_lava(delta: float) -> void:
+	## lava_tick_dmg per lava_tick_interval while the digger overlaps the
+	## lava volume; the accumulator resets on exit, so every breach starts a
+	## fresh grace of one interval — a clean route-around costs nothing.
+	if _lava_volume == null or not _lava_volume.overlaps_body(player):
+		_lava_accum = 0.0
+		return
+	var hz: HazardConfig = GameState.hazards
+	_lava_accum += delta
+	while _lava_accum >= hz.lava_tick_interval:
+		_lava_accum -= hz.lava_tick_interval
+		GameState.apply_hazard_damage(hz.lava_tick_dmg)
 
 
 func _burst_gas(tile: Vector2i, band: int) -> void:
@@ -198,6 +287,28 @@ func prize_glint_positions() -> Array[Vector2]:
 	for pickup in pickups_root.get_children():
 		if pickup is GemPickup and pickup.tier == Worldgen.PRIZE_TIER:
 			out.append(pickup.global_position)
+	return out
+
+
+func lava_glow_points(from: Vector2, reach: float, cap: int) -> Array[Vector2]:
+	## The nearest resident lava tile centres within reach of `from` (world
+	## px), for the darkness renderer's glow — the second self-lit exception
+	## (spec §6). Scans per-chunk lists and prunes whole chunks by distance,
+	## so the per-frame cost tracks the local pocket, not the window.
+	var candidates: Array = []
+	var chunk_px := float(worldgen.config.chunk_size * worldgen.config.tile_px)
+	for cc: Vector2i in _chunk_lava.keys():
+		var chunk_center := (Vector2(cc) + Vector2(0.5, 0.5)) * chunk_px
+		if (chunk_center - from).length() > reach + chunk_px * 0.75:
+			continue
+		for center: Vector2 in _chunk_lava[cc]:
+			var d := (center - from).length()
+			if d <= reach:
+				candidates.append([d, center])
+	candidates.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var out: Array[Vector2] = []
+	for i in range(mini(cap, candidates.size())):
+		out.append(candidates[i][1])
 	return out
 
 
@@ -232,6 +343,9 @@ func _build_tile_set() -> TileSet:
 	_paint_rock(img, 16, px, BEDROCK_COLOR, false)
 	for i in range(1, 5):
 		_paint_gas(img, 16 + i, px, BAND_COLORS[i])
+	for i in range(3, 5):
+		_paint_unstable(img, 18 + i, px, BAND_COLORS[i])
+	_paint_lava(img, LAVA_COLUMN, px)
 
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(px, px)
@@ -249,6 +363,8 @@ func _build_tile_set() -> TileSet:
 	)
 	for i in range(ATLAS_TILES):
 		src.create_tile(Vector2i(i, 0))
+		if i == LAVA_COLUMN:
+			continue  # lava never blocks movement — you fly INTO it (spec §5)
 		var td := src.get_tile_data(Vector2i(i, 0), 0)
 		td.add_collision_polygon(0)
 		td.set_collision_polygon_points(0, 0, full_rect)
@@ -285,6 +401,43 @@ func _paint_gas(img: Image, col: int, px: int, base: Color) -> void:
 			img.set_pixel(col * px + x, y, c)
 
 
+func _paint_unstable(img: Image, col: int, px: int, base: Color) -> void:
+	# The cave-in tell (spec §5/§7): band rock split by dark jagged cracks
+	# with a dusting of pale chips — reads as "do not undermine" at a glance.
+	# The darkness overlay hides it beyond the lit radius: the tell renders
+	# only in the light, no dice roll.
+	_paint_rock(img, col, px, base, false)
+	var crack := base.darkened(0.55)
+	var chip := base.lightened(0.25)
+	var mid := px / 2
+	for y in range(px):
+		var wob := (y * 5 + col) % 3 - 1 + (y % 4) - 2
+		img.set_pixel(col * px + clampi(mid + wob, 0, px - 1), y, crack)
+	for x in range(mid):
+		var yy := clampi(px / 3 + (x * 3) % 2, 0, px - 1)
+		img.set_pixel(col * px + x, yy, crack)
+		if x % 3 == 0:
+			img.set_pixel(col * px + x, clampi(yy + 1, 0, px - 1), chip)
+
+
+func _paint_lava(img: Image, col: int, px: int) -> void:
+	# Lava (spec §5/§7): molten saturated orange — one of the few owners of
+	# saturated hue (reserve-saturation rule), self-lit through darkness via
+	# the shader glow rather than this texture.
+	var deep := Color8(168, 38, 18)
+	var mid := Color8(232, 92, 24)
+	var hot := Color8(255, 168, 48)
+	for y in range(px):
+		for x in range(px):
+			var c := mid
+			var speckle := (x * 23 + y * 41 + x * y) % 7
+			if speckle == 0:
+				c = hot
+			elif speckle <= 2:
+				c = deep
+			img.set_pixel(col * px + x, y, c)
+
+
 func _paint_gem(img: Image, col: int, px: int, color: Color) -> void:
 	var dark := Color8(52, 48, 46)
 	var mid := px / 2
@@ -299,15 +452,20 @@ func _paint_gem(img: Image, col: int, px: int, color: Color) -> void:
 
 func _atlas_for_code(code: int) -> Vector2i:
 	var aux := Worldgen.aux_of(code)
+	var col := 16  # bedrock fallback
 	match Worldgen.kind_of(code):
 		Worldgen.Kind.ROCK:
-			return Vector2i(aux, 0)
+			col = aux
 		Worldgen.Kind.HALO:
-			return Vector2i(5 + aux, 0)
+			col = 5 + aux
 		Worldgen.Kind.GEM:
-			return Vector2i(9 + aux, 0)  # tier 1..5 -> cols 10..14
+			col = 9 + aux  # tier 1..5 -> cols 10..14
 		Worldgen.Kind.PRIZE:
-			return Vector2i(15, 0)
+			col = 15
 		Worldgen.Kind.GAS:
-			return Vector2i(16 + aux, 0)  # band 1..4 -> cols 17..20
-	return Vector2i(16, 0)
+			col = 16 + aux  # band 1..4 -> cols 17..20
+		Worldgen.Kind.UNSTABLE:
+			col = 18 + aux  # band 3..4 -> cols 21..22
+		Worldgen.Kind.LAVA:
+			col = LAVA_COLUMN
+	return Vector2i(col, 0)

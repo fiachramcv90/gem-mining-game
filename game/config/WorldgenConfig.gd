@@ -15,6 +15,10 @@ extends Resource
 ## Vein halo rock is +1 hardness; the prize nodule +2 (spec §3).
 @export var halo_hardness_bonus := 1
 @export var prize_hardness_bonus := 2
+## The unbreakable side walls continue this many tiles ABOVE the surface
+## line, so the shaft reads as a walled pit from above and sideways flight
+## at the surface has a boundary (on-device feedback #2).
+@export var surface_wall_height := 4
 
 # --- gems & veins (spec §3) --------------------------------------------------
 ## ~8% of tiles, roughly flat with depth — deeper pays via tier, never count.

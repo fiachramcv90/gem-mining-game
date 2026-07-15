@@ -7,12 +7,17 @@ extends RefCounted
 ## same tile always generates the same way.
 
 ## Tile kinds. AIR tiles are never stored in the TileMapLayer.
-enum Kind { AIR, ROCK, HALO, GEM, PRIZE, BEDROCK, GAS }
+enum Kind { AIR, ROCK, HALO, GEM, PRIZE, BEDROCK, GAS, UNSTABLE, LAVA }
 
 ## Sentinel "tier" for the prize gem (T1..T5 are 1..5).
 const PRIZE_TIER := 6
 
 const DIRS: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
+
+## Per-hazard salts for _hash01_tile. GAS_SALT is session 3's original value
+## — changing it would reshuffle gas in every existing mine.
+const GAS_SALT := 0x9E3779B9
+const CAVEIN_SALT := 0xC0FFEE55
 
 var config: WorldgenConfig
 ## Gas placement rates live in HazardConfig (Appendix A's hazards section)
@@ -20,6 +25,7 @@ var config: WorldgenConfig
 var hazards: HazardConfig
 var world_seed: int
 var _cave_noise: FastNoiseLite
+var _lava_noise: FastNoiseLite
 
 
 func _init(cfg: WorldgenConfig, hazard_cfg: HazardConfig, seed_value: int) -> void:
@@ -30,6 +36,12 @@ func _init(cfg: WorldgenConfig, hazard_cfg: HazardConfig, seed_value: int) -> vo
 	_cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_cave_noise.seed = (seed_value ^ 0x51F0CAFE) & 0x7FFFFFFF
 	_cave_noise.frequency = config.cave_noise_frequency
+	# Lava pockets carve from their own seeded channel (spec §3/§5), so they
+	# reload identically too.
+	_lava_noise = FastNoiseLite.new()
+	_lava_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_lava_noise.seed = (seed_value ^ 0x6C617661) & 0x7FFFFFFF
+	_lava_noise.frequency = hazards.lava_noise_frequency
 
 
 # --- tile codes: kind<<8 | aux (aux = band for rock/halo, tier for gems) ----
@@ -70,7 +82,9 @@ func hardness_at(y: int, code: int) -> float:
 			return base + config.prize_hardness_bonus
 		Kind.BEDROCK:
 			return INF
-	return base
+		Kind.LAVA:
+			return INF  # molten — routed around, never drilled
+	return base  # gas and cracked/unstable rock drill like band baseline
 
 
 # --- chunk generation --------------------------------------------------------
@@ -82,8 +96,8 @@ func chunk_cells(cc: Vector2i) -> Dictionary:
 	var cs := config.chunk_size
 	var base := cc * cs
 	var out := {}
-	if base.y + cs <= 0:
-		return out  # entirely above the surface: open sky
+	if base.y + cs <= -config.surface_wall_height:
+		return out  # entirely above the surface walls: open sky
 
 	# Veins are laid out on a deterministic vein-cell grid. A vein (and its
 	# halo) can reach 2 tiles past its cell, so gather every cell whose
@@ -100,12 +114,20 @@ func chunk_cells(cc: Vector2i) -> Dictionary:
 				gems.merge(vein["gems"])
 				halos.merge(vein["halo"])
 
+	var half := config.shaft_width / 2
 	for ly in range(cs):
 		var y := base.y + ly
-		if y < 0:
+		if y < -config.surface_wall_height:
 			continue
 		for lx in range(cs):
 			var x := base.x + lx
+			if y < 0:
+				# Above the surface line only the side walls exist: the
+				# unbreakable bedrock continues surface_wall_height tiles up
+				# so the shaft reads as a walled pit from above.
+				if x < -half or x >= half:
+					out[Vector2i(x, y)] = make_code(Kind.BEDROCK)
+				continue
 			var code := _code_at(x, y, gems, halos)
 			if kind_of(code) != Kind.AIR:
 				out[Vector2i(x, y)] = code
@@ -122,11 +144,22 @@ func _code_at(x: int, y: int, gems: Dictionary, halos: Dictionary) -> int:
 		return make_code(Kind.PRIZE if tier == PRIZE_TIER else Kind.GEM, tier)
 	if _is_cave(x, y):
 		return make_code(Kind.AIR)
+	return _solid_code_at(x, y, halos.has(tile))
+
+
+func _solid_code_at(x: int, y: int, in_halo: bool) -> int:
+	## Which solid tile fills a non-void, non-gem cell — lava wins (molten
+	## pockets cut through everything), then the vein halo, then the hazard
+	## channels, then plain band rock.
 	var band := band_index(y)
-	if halos.has(tile):
+	if _is_lava(x, y, band):
+		return make_code(Kind.LAVA, band)
+	if in_halo:
 		return make_code(Kind.HALO, band)
 	if _is_gas(x, y, band):
 		return make_code(Kind.GAS, band)
+	if _is_unstable(x, y, band):
+		return make_code(Kind.UNSTABLE, band)
 	return make_code(Kind.ROCK, band)
 
 
@@ -142,7 +175,37 @@ func _is_gas(x: int, y: int, band: int) -> bool:
 	var rate := hazards.gas_encounter_rate[band - 1]
 	if rate <= 0.0:
 		return false
-	return _hash01_tile(x, y) < rate
+	return _hash01_tile(x, y, GAS_SALT) < rate
+
+
+func _is_unstable(x: int, y: int, band: int) -> bool:
+	## Cave-ins (spec §5, Granite+ only): cracked/unstable rock that drops
+	## when the tile under it is dug out. Placement is a pure per-tile hash
+	## of (world_seed, tile) against cavein_encounter_rate[band - 3] — same
+	## discipline as gas, never runtime randf(). A tile whose support is a
+	## cave void at generation time is skipped: cracked rock that could never
+	## be undermined is a tell that lies.
+	if band < 3:
+		return false
+	var rate := hazards.cavein_encounter_rate[band - 3]
+	if rate <= 0.0:
+		return false
+	if _hash01_tile(x, y, CAVEIN_SALT) >= rate:
+		return false
+	return not _is_cave(x, y + 1)
+
+
+func _is_lava(x: int, y: int, band: int) -> bool:
+	## Lava pockets (spec §5, Bedrock only): molten tiles from a seeded noise
+	## channel, sealed behind rock until breached. lava_encounter_rate gates
+	## the noise threshold; 0 disables.
+	if band < 4:
+		return false
+	var rate := hazards.lava_encounter_rate
+	if rate <= 0.0:
+		return false
+	var n := (_lava_noise.get_noise_2d(float(x), float(y)) + 1.0) * 0.5
+	return n > 1.0 - rate
 
 
 func _is_cave(x: int, y: int) -> bool:
@@ -258,11 +321,11 @@ static func fdiv(a: int, b: int) -> int:
 	return (a - posmod(a, b)) / b
 
 
-func _hash01_tile(x: int, y: int) -> float:
-	## Per-tile 32-bit avalanche mix of (world_seed, tile coords) mapped to
-	## [0, 1) — a different salt than _hash_cell so gas placement never
-	## correlates with vein placement.
-	var h := (world_seed ^ 0x9E3779B9) & 0xFFFFFFFF
+func _hash01_tile(x: int, y: int, salt: int) -> float:
+	## Per-tile 32-bit avalanche mix of (world_seed, salt, tile coords)
+	## mapped to [0, 1) — a distinct salt per hazard channel (and distinct
+	## from _hash_cell) so gas, cave-in and vein placement never correlate.
+	var h := (world_seed ^ salt) & 0xFFFFFFFF
 	h = (h ^ ((x * 0x85EBCA6B) & 0xFFFFFFFF)) & 0xFFFFFFFF
 	h = ((h << 11) | (h >> 21)) & 0xFFFFFFFF
 	h = (h ^ ((y * 0xC2B2AE35) & 0xFFFFFFFF)) & 0xFFFFFFFF
