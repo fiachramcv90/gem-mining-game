@@ -235,7 +235,7 @@ func _check_undermined(dug_tile: Vector2i) -> void:
 	var above := dug_tile + Vector2i.UP
 	while Worldgen.kind_of(code_at(above)) == Worldgen.Kind.UNSTABLE:
 		var band := Worldgen.aux_of(code_at(above))
-		GameState.mark_dug(above)
+		GameState.mark_dug(above, false)
 		rock.erase_cell(above)
 		var cc := GameState.chunk_of(above)
 		if _chunk_codes.has(cc):
@@ -263,14 +263,16 @@ func _tick_lava(delta: float) -> void:
 	_lava_accum += delta
 	while _lava_accum >= hz.lava_tick_interval:
 		_lava_accum -= hz.lava_tick_interval
-		GameState.apply_hazard_damage(hz.lava_tick_dmg)
+		GameState.apply_hazard_damage(hz.lava_tick_dmg, GameState.HAZARD_LAVA)
 
 
 func _burst_gas(tile: Vector2i, band: int) -> void:
 	## Gas burst (spec §5): dig-triggered, damage by band through the single
 	## hazard entry point. Darkness scales whether the tell was SEEN, never
 	## the damage size (§6) — drilling a gas tile always bursts it.
-	GameState.apply_hazard_damage(float(GameState.hazards.gas_burst_dmg[band - 1]))
+	GameState.apply_hazard_damage(
+		float(GameState.hazards.gas_burst_dmg[band - 1]), GameState.HAZARD_GAS
+	)
 	var px := worldgen.config.tile_px
 	var flash := GasBurstFlash.new()
 	flash.position = Vector2(tile) * px + Vector2(px, px) * 0.5

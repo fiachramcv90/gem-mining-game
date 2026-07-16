@@ -9,7 +9,22 @@ signal hull_changed(value: float, cap: float)
 signal cargo_changed(count: int, slots: int)
 signal depth_changed(depth: int)
 signal cargo_sold(value: int)
-signal run_lost(reason: String)
+signal run_lost(reason: String, cargo_lost: int)
+## The moment-of-the-event signals the Miner's Log counts on (spec §8):
+## every one already existed as a game event — no new detection systems.
+signal tile_dug(tile: Vector2i)
+signal gem_collected(tier: int)
+signal prizes_banked(count: int)
+## Emitted when a hazard lands damage and the hull HOLDS — the "survived
+## your first X" family pins here (kind = one of the HAZARD_* consts).
+signal hazard_survived(kind: String, amount: float)
+
+## Hazard kind tags for apply_hazard_damage / hazard_survived — one per
+## trigger mechanism (spec §5).
+const HAZARD_FALL := "fall"
+const HAZARD_GAS := "gas"
+const HAZARD_CAVEIN := "cavein"
+const HAZARD_LAVA := "lava"
 
 ## The three config resources (Appendix A). Loaded once; every derived value
 ## (drill time, capacities) is computed from (config, upgrades, depth) —
@@ -71,13 +86,17 @@ func drain_fuel(amount: float) -> void:
 		lose_run("ran dry below ground — the climb home costs fuel too")
 
 
-func apply_hazard_damage(amount: float) -> void:
+func apply_hazard_damage(amount: float, kind: String = "") -> void:
 	## The single hazard entry point (spec §5): every hazard lands its hull
-	## damage here. Falls are live (Act I); gas/cave-ins/lava are later acts.
+	## damage here, tagged with its HAZARD_* kind. Damage the hull absorbs
+	## emits hazard_survived — the event the survival milestones pin to
+	## (spec §8); damage it doesn't is the one run-lost outcome.
 	hull = maxf(0.0, hull - amount)
 	hull_changed.emit(hull, float(Upgrades.hull_capacity()))
 	if hull <= 0.0:
 		lose_run("hull breached")
+	elif amount > 0.0 and kind != "":
+		hazard_survived.emit(kind, amount)
 
 
 func apply_fall_damage(tiles_fallen: float, brace_held: bool) -> void:
@@ -93,7 +112,7 @@ func apply_fall_damage(tiles_fallen: float, brace_held: bool) -> void:
 	var dmg := minf(over * hazards.fall_dmg_per_tile, hazards.fall_dmg_cap_frac * hull)
 	if brace_held and tiles_fallen <= lit_view_radius():
 		dmg *= hazards.fall_light_brace_factor
-	apply_hazard_damage(dmg)
+	apply_hazard_damage(dmg, HAZARD_FALL)
 
 
 func lit_view_radius() -> float:
@@ -108,11 +127,13 @@ func lit_view_radius() -> float:
 
 func lose_run(reason: String) -> void:
 	## The single "run lost" outcome (spec §1): forfeit only carried cargo,
-	## keep Wallet and upgrades, respawn topped up for free.
+	## keep Wallet and upgrades, respawn topped up for free. The forfeited
+	## value rides the signal — the cargo_value_lost stat's moment (spec §8).
+	var lost := cargo_value()
 	cargo.clear()
 	cargo_changed.emit(0, Upgrades.cargo_slots())
 	top_up()
-	run_lost.emit(reason)
+	run_lost.emit(reason, lost)
 
 
 func try_collect(tier: int) -> bool:
@@ -121,6 +142,7 @@ func try_collect(tier: int) -> bool:
 		return false
 	cargo.append(tier)
 	cargo_changed.emit(cargo.size(), Upgrades.cargo_slots())
+	gem_collected.emit(tier)
 	return true
 
 
@@ -139,10 +161,17 @@ func sell_cargo() -> void:
 	## the ratchet's fuel (CONTEXT.md). A surface event: SaveManager snapshots
 	## on cargo_sold (spec §13).
 	var value := cargo_value()
+	var prizes := 0
+	for tier in cargo:
+		if tier == Worldgen.PRIZE_TIER:
+			prizes += 1
 	Wallet.add(value)
 	cargo.clear()
 	cargo_changed.emit(0, Upgrades.cargo_slots())
 	cargo_sold.emit(value)
+	if prizes > 0:
+		# Banked, not merely carried — the run home was part of it (spec §8).
+		prizes_banked.emit(prizes)
 
 
 func refuel_repair() -> void:
@@ -173,7 +202,10 @@ func _bit_of(tile: Vector2i) -> int:
 	return posmod(tile.y, cs) * cs + posmod(tile.x, cs)
 
 
-func mark_dug(tile: Vector2i) -> void:
+func mark_dug(tile: Vector2i, player_dug: bool = true) -> void:
+	## player_dug distinguishes the drill breaking a tile (the tiles_dug
+	## stat's moment, spec §8) from rock a cave-in let go of — both persist
+	## as the same ordinary dug delta.
 	var cc := chunk_of(tile)
 	if not dug.has(cc):
 		var mask := PackedByteArray()
@@ -183,6 +215,8 @@ func mark_dug(tile: Vector2i) -> void:
 	var mask: PackedByteArray = dug[cc]
 	mask[bit >> 3] = mask[bit >> 3] | (1 << (bit & 7))
 	dug[cc] = mask
+	if player_dug:
+		tile_dug.emit(tile)
 
 
 func is_dug(tile: Vector2i) -> bool:

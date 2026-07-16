@@ -15,7 +15,7 @@ signal import_succeeded
 signal import_failed(reason: String)
 
 const SAVE_PATH := "user://save.dat"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 const EXPORT_FILENAME := "gem-miner-save.dat"
 const IMPORT_INPUT_ID := "gem-miner-import"
 
@@ -102,14 +102,18 @@ func build_envelope() -> Dictionary:
 			"hoist": Upgrades.hoist,
 		},
 		"run": null,  # best-effort mid-run state — still a stub (spec §13)
-		"stats": {},  # 0012 — later session
-		"milestones": {},  # 0012 — later session
-		"nudges": {"audio_hint_shown": false, "a2hs_dismissed": 0},  # 0013
+		"stats": MinersLog.stats.duplicate(),  # 0012 (spec §8)
+		"milestones": MinersLog.milestones.duplicate(),  # 0012 (spec §8)
+		"nudges":  # 0013 (spec §9)
+		{
+			"audio_hint_shown": Nudges.audio_hint_shown,
+			"a2hs_dismissed": Nudges.a2hs_dismissed,
+		},
 		"meta":
 		{
 			"saved_at": int(Time.get_unix_time_from_system()),
 			"play_secs": 0,
-			"schema_note": "vertical slice 2",
+			"schema_note": "vertical slice 5",
 		},
 	}
 
@@ -138,6 +142,8 @@ func apply_envelope(env: Dictionary) -> void:
 	for track: String in Upgrades.levels.keys():
 		Upgrades.levels[track] = clampi(_int_in(up, track, 0), 0, Upgrades.max_level(track))
 	Upgrades.hoist = bool(up.get("hoist", false))
+	MinersLog.load_state(_dict_in(env, "stats"), _dict_in(env, "milestones"))
+	Nudges.load_state(_dict_in(env, "nudges"))
 	GameState.cargo.clear()
 	GameState.top_up()
 	GameState.set_depth(0)
@@ -172,12 +178,28 @@ func deserialize_blob(bytes: PackedByteArray) -> Dictionary:
 func _migrate(env: Dictionary) -> Dictionary:
 	## The ordered, pure migrate(dict) -> dict chain (spec §13): each step
 	## bumps save_version by exactly one; only ever add keys or bump the
-	## version. No steps exist yet — version 1 is current — so anything older
-	## is unmigratable and treated as corrupt.
+	## version. Anything older than the oldest step is treated as corrupt.
 	while int(env.get("save_version", 0)) < SAVE_VERSION:
 		match int(env.get("save_version", 0)):
+			1:
+				env = _migrate_1_to_2(env)
 			_:
 				return {}
+	return env
+
+
+func _migrate_1_to_2(env: Dictionary) -> Dictionary:
+	## v1 -> v2 (session 5): the 0012/0013 keys — stats / milestones /
+	## nudges — become live state. Keys are only ADDED; a v1 save loads
+	## clean and starts counting from zero (v1 builds already wrote empty
+	## placeholders for all three, so this mostly just bumps the version).
+	if not (env.get("stats") is Dictionary):
+		env["stats"] = {}
+	if not (env.get("milestones") is Dictionary):
+		env["milestones"] = {}
+	if not (env.get("nudges") is Dictionary):
+		env["nudges"] = {"audio_hint_shown": false, "a2hs_dismissed": 0}
+	env["save_version"] = 2
 	return env
 
 
@@ -271,7 +293,7 @@ func _on_cargo_sold(_value: int) -> void:
 	save_now()
 
 
-func _on_run_lost(_reason: String) -> void:
+func _on_run_lost(_reason: String, _cargo_lost: int) -> void:
 	save_now()
 
 

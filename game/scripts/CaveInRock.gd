@@ -53,7 +53,9 @@ func _check_player_hit(px: float) -> void:
 	# Player body is a 12 px square; rock is a full tile.
 	if absf(d.x) < px * 0.5 + 6.0 and absf(d.y) < px * 0.5 + 6.0:
 		_hit_player = true
-		GameState.apply_hazard_damage(float(GameState.hazards.cavein_dmg[band - 3]))
+		GameState.apply_hazard_damage(
+			float(GameState.hazards.cavein_dmg[band - 3]), GameState.HAZARD_CAVEIN
+		)
 		_shatter()
 
 

@@ -7,6 +7,41 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-16 — session-5 build (Miner's Log, onboarding, hub census)
+
+### Item #3 (hub as a physical garage) — judged: stays for the art session
+
+Re-judged now that the hub census is complete on this build. The census
+(§9, closed) is fully occupied — 4 actions + MINER'S LOG + ♥ + 💾 — and
+the two constraints both survive a garage presentation (the census says
+nothing about form; 0013's "the hub teaches itself" is about content, not
+geometry). But building a fly-in garage is layout/art work with zero new
+mechanics, exactly the §7 session's material — and doing it grey-box now
+would mean doing it twice. **Decision: not shipped here; first item of the
+art session's hub-layout work, alongside #4 and #6.** The trigger swap
+(garage volume replaces the SURFACE HUB button) must keep every census
+element reachable and nothing else.
+
+### Session-4 danger knobs — standing, not re-tuned (no on-device pass yet)
+
+This session's verification was headless + desktop; the danger *feel*
+knobs flagged for on-device judgment are deliberately untouched, so the
+next phone session judges them on a build where the Log banners and the
+fuel pulse are also live: `cavein_telegraph_secs` 0.45 (is the tremble
+readable at thumb speed?), the lava glow look (`lava_glow_radius` 6), and
+the standing feedback-#1 falls note (`fall_dmg_per_tile` 4 /
+`fall_grace_tiles` 3 — raise toward 5 / drop to 2 only if the full danger
+model still reads toothless). Knobs only, never structure.
+
+### New §17 watch items now live on-device
+
+The two onboarding assumptions 0013 flags for playtesting are now in the
+build: does the ghost line ever show long enough to matter (it should
+almost never — 0004 says the scheme is grasped near-instantly), and does
+the round-trip pulse at 1.3× ascent cost fire early enough to teach
+without crying wolf (`roundtrip_pulse_threshold`, EconomyConfig). Log
+verdicts here after the next phone session.
+
 ## 2026-07-15 — session-4 on-device report (wall rim hoppable)
 
 ### Item #2 again: "I can just fly up and over the edges"

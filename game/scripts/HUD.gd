@@ -1,11 +1,21 @@
 class_name HUD
 extends CanvasLayer
-## The three-pressures HUD (spec §1) + the surface hub — the §9 census: the
-## four core actions (sell · refuel/repair · upgrade · descend) plus the 💾
-## save-safety corner (Log/♥ corners are later sessions) — and the single
-## run-lost outcome screen. Built in code: grey-box UI, real art direction
-## is spec §7. process_mode is ALWAYS so hub buttons work while the tree is
-## paused.
+## The three-pressures HUD (spec §1) + the surface hub — the complete §9
+## census: the four core actions (sell · refuel/repair · upgrade · descend)
+## + the Miner's Log button + the ♥ Support corner + the 💾 save-safety
+## corner — plus the single run-lost outcome screen, the milestone banner,
+## the first-descent ghost line, and the tap-to-start screen. Built in
+## code: grey-box UI, real art direction is spec §7. process_mode is ALWAYS
+## so hub buttons work while the tree is paused.
+
+## The ghost line's lifecycle (spec §9): armed until the first descent,
+## showing until the first dig or the backstop, then done for good —
+## "first run" is derived from an empty dug delta, never a save flag.
+enum GhostState { ARMED, SHOWING, DONE }
+
+const BANNER_FADE_IN := 0.25
+const BANNER_HOLD := 2.2
+const BANNER_FADE_OUT := 0.5
 
 var _readout: Control
 var _hub_button: Button
@@ -16,8 +26,23 @@ var _sell_button: Button
 var _shop: UpgradeShop
 var _shop_panel: Control
 var _save_corner: SaveCorner
+var _support_corner: SupportCorner
+var _log_screen: MinersLogScreen
+var _log_panel: Control
 var _lost_panel: Control
 var _lost_reason: Label
+var _title: TitleScreen
+
+# The milestone banner (spec §8): one terse line, faded in and out over the
+# action — never a modal, you may be dodging lava. Queued so simultaneous
+# awards read one at a time.
+var _banner: Label
+var _banner_queue: Array[String] = []
+var _banner_playing := false
+
+var _ghost_line: Label
+var _ghost_state := GhostState.ARMED
+var _ghost_clock := 0.0
 
 @onready var stick: VirtualStick = $VirtualStick
 
@@ -44,23 +69,47 @@ func _ready() -> void:
 	_shop_panel = _center_wrap(_shop)
 	add_child(_shop_panel)
 
+	_log_screen = MinersLogScreen.new()
+	_log_screen.closed.connect(_close_log)
+	_log_panel = _center_wrap(_log_screen)
+	add_child(_log_panel)
+
 	_save_corner = SaveCorner.new()
 	add_child(_save_corner)
+
+	_support_corner = SupportCorner.new()
+	add_child(_support_corner)
 
 	_lost_panel = _build_lost_panel()
 	add_child(_lost_panel)
 
+	_banner = _build_banner()
+	add_child(_banner)
+
+	_ghost_line = _build_ghost_line()
+	add_child(_ghost_line)
+
+	# The tap-to-start screen sits over everything (spec §9): it pauses the
+	# tree in its _ready and the game-starting tap releases it.
+	_title = TitleScreen.new()
+	add_child(_title)
+
 	GameState.run_lost.connect(_on_run_lost)
 	GameState.cargo_sold.connect(_on_cargo_sold)
+	GameState.tile_dug.connect(_on_first_dig)
+	MinersLog.milestone_earned.connect(_on_milestone_earned)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_hub_button.visible = (
 		GameState.depth == 0
+		and not _title.visible
 		and not _hub_panel.visible
 		and not _shop_panel.visible
+		and not _log_panel.visible
 		and not _lost_panel.visible
 	)
+	_tick_ghost_line(delta)
 	_readout.queue_redraw()
 
 
@@ -159,6 +208,8 @@ func _build_hub_panel() -> Control:
 	vbox.add_child(_sell_button)
 	vbox.add_child(_hub_action("REFUEL + REPAIR (free)", _on_refuel))
 	vbox.add_child(_hub_action("UPGRADES", _open_shop))
+	# The one new button 0012 is allowed (spec §8) — the census is complete.
+	vbox.add_child(_hub_action("MINER'S LOG", _open_log))
 	vbox.add_child(_hub_action("DESCEND", _close_hub))
 	return _center_wrap(panel)
 
@@ -190,6 +241,18 @@ func _open_shop() -> void:
 
 func _close_shop() -> void:
 	_shop_panel.visible = false
+	_refresh_hub_labels()
+	_hub_panel.visible = true
+
+
+func _open_log() -> void:
+	_hub_panel.visible = false
+	_log_screen.refresh()
+	_log_panel.visible = true
+
+
+func _close_log() -> void:
+	_log_panel.visible = false
 	_refresh_hub_labels()
 	_hub_panel.visible = true
 
@@ -273,7 +336,10 @@ func _build_lost_panel() -> Control:
 	return _center_wrap(panel)
 
 
-func _on_run_lost(reason: String) -> void:
+func _on_run_lost(reason: String, _cargo_lost: int) -> void:
+	# The death-reason line is permanent UI (spec §9) — the fuel variant
+	# ("ran dry below ground — the climb home costs fuel too") closes the
+	# round-trip lesson at the one moment it has full attention.
 	_lost_reason.text = reason
 	_lost_panel.visible = true
 	get_tree().paused = true
@@ -282,3 +348,91 @@ func _on_run_lost(reason: String) -> void:
 func _dismiss_lost() -> void:
 	_lost_panel.visible = false
 	get_tree().paused = false
+
+
+# --- the milestone banner (spec §8) --------------------------------------------
+
+
+func _build_banner() -> Label:
+	var banner := Label.new()
+	# Full-width strip via offsets (position would bake in the zero size the
+	# label still has during _ready).
+	banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner.offset_top = 150.0
+	banner.offset_bottom = 190.0
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_theme_font_size_override("font_size", 16)
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.modulate = Color(1.0, 0.85, 0.4, 0.0)
+	return banner
+
+
+func _on_milestone_earned(_id: String, line: String) -> void:
+	if line.is_empty():
+		return
+	_banner_queue.append(line)
+	_play_next_banner()
+
+
+func _play_next_banner() -> void:
+	if _banner_playing or _banner_queue.is_empty():
+		return
+	_banner_playing = true
+	_banner.text = _banner_queue.pop_front()
+	var t := create_tween()
+	t.tween_property(_banner, "modulate:a", 1.0, BANNER_FADE_IN)
+	t.tween_interval(BANNER_HOLD)
+	t.tween_property(_banner, "modulate:a", 0.0, BANNER_FADE_OUT)
+	t.tween_callback(_on_banner_done)
+
+
+func _on_banner_done() -> void:
+	_banner_playing = false
+	_play_next_banner()
+
+
+# --- the controls ghost line (spec §9) -------------------------------------------
+
+
+func _build_ghost_line() -> Label:
+	var ghost := Label.new()
+	ghost.text = "push to fly · hold into rock to dig"
+	ghost.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	ghost.offset_top = 300.0
+	ghost.offset_bottom = 340.0
+	ghost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ghost.add_theme_font_size_override("font_size", 14)
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.modulate = Color(1, 1, 1, 0.0)
+	return ghost
+
+
+func _tick_ghost_line(delta: float) -> void:
+	## First descent only, derived from an empty dug delta — no flag: the
+	## first dig is itself the persisted event that retires the line. The
+	## backstop timer catches the player who only ever flies.
+	match _ghost_state:
+		GhostState.ARMED:
+			if GameState.depth > 0:
+				if GameState.dug.is_empty():
+					_ghost_state = GhostState.SHOWING
+					_ghost_clock = 0.0
+					create_tween().tween_property(_ghost_line, "modulate:a", 0.6, 0.5)
+				else:
+					_ghost_state = GhostState.DONE
+		GhostState.SHOWING:
+			_ghost_clock += delta
+			if _ghost_clock >= GameState.economy.ghost_line_backstop_secs:
+				_dismiss_ghost_line()
+		GhostState.DONE:
+			pass
+
+
+func _on_first_dig(_tile: Vector2i) -> void:
+	if _ghost_state == GhostState.SHOWING:
+		_dismiss_ghost_line()
+
+
+func _dismiss_ghost_line() -> void:
+	_ghost_state = GhostState.DONE
+	create_tween().tween_property(_ghost_line, "modulate:a", 0.0, 0.6)
