@@ -80,7 +80,7 @@ func _draw() -> void:
 	var wobble := Vector2.ZERO
 	if _phase == Phase.TREMBLE:
 		wobble.x = sin(_clock * 46.0) * 1.4
-	var base: Color = Mine.BAND_COLORS[band]
+	var base: Color = Palette.band_mid(band)
 	var half := px * 0.5
 	draw_rect(Rect2(wobble - Vector2(half, half), Vector2(px, px)), base, true)
 	var crack := base.darkened(0.55)

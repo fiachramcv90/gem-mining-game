@@ -5,8 +5,10 @@ extends CanvasLayer
 ## + the Miner's Log button + the ♥ Support corner + the 💾 save-safety
 ## corner — plus the single run-lost outcome screen, the milestone banner,
 ## the first-descent ghost line, and the tap-to-start screen. Built in
-## code: grey-box UI, real art direction is spec §7. process_mode is ALWAYS
-## so hub buttons work while the tree is paused.
+## code, themed by UITheme (§7 feedback #4). The hub opens by flying into
+## the GARAGE (feedback #3 — Garage.gd calls open_hub(); the old SURFACE
+## HUB button is gone, the census is unchanged). process_mode is ALWAYS so
+## hub buttons work while the tree is paused.
 
 ## The ghost line's lifecycle (spec §9): armed until the first descent,
 ## showing until the first dig or the backstop, then done for good —
@@ -18,7 +20,6 @@ const BANNER_HOLD := 2.2
 const BANNER_FADE_OUT := 0.5
 
 var _readout: Control
-var _hub_button: Button
 var _hub_panel: Control
 var _hub_wallet: Label
 var _hub_cargo: Label
@@ -44,22 +45,24 @@ var _ghost_line: Label
 var _ghost_state := GhostState.ARMED
 var _ghost_clock := 0.0
 
+## The shared panel theme (feedback #4), built once.
+var _theme: Theme
+
+## Edge detector for the round-trip pulse's bonus warning beep (spec §7:
+## the visual pulse is the teacher; audio is additive).
+var _fuel_pulsing := false
+
 @onready var stick: VirtualStick = $VirtualStick
 
 
 func _ready() -> void:
+	_theme = UITheme.build()
+
 	_readout = Control.new()
 	_readout.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_readout.draw.connect(_draw_readout)
 	add_child(_readout)
-
-	_hub_button = Button.new()
-	_hub_button.text = "SURFACE HUB"
-	_hub_button.position = Vector2(300, 12)
-	_hub_button.size = Vector2(128, 44)
-	_hub_button.pressed.connect(_open_hub)
-	add_child(_hub_button)
 
 	_hub_panel = _build_hub_panel()
 	add_child(_hub_panel)
@@ -75,9 +78,11 @@ func _ready() -> void:
 	add_child(_log_panel)
 
 	_save_corner = SaveCorner.new()
+	_save_corner.theme = _theme
 	add_child(_save_corner)
 
 	_support_corner = SupportCorner.new()
+	_support_corner.theme = _theme
 	add_child(_support_corner)
 
 	_lost_panel = _build_lost_panel()
@@ -101,16 +106,38 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_hub_button.visible = (
-		GameState.depth == 0
-		and not _title.visible
+	_tick_ghost_line(delta)
+	_tick_fuel_warning()
+	_readout.queue_redraw()
+
+
+func is_idle() -> bool:
+	## No screen is claiming the player — the garage doorway may open the hub.
+	return (
+		not _title.visible
 		and not _hub_panel.visible
 		and not _shop_panel.visible
 		and not _log_panel.visible
 		and not _lost_panel.visible
 	)
-	_tick_ghost_line(delta)
-	_readout.queue_redraw()
+
+
+func _roundtrip_pulse_active() -> bool:
+	## The round-trip warning condition (spec §9): remaining fuel approaches
+	## the estimated ascent cost from the current depth.
+	if GameState.depth <= 0:
+		return false
+	var eco := GameState.economy
+	var ascent_cost := GameState.depth * eco.fuel_ascent_per_tile * Upgrades.ascent_factor()
+	return GameState.fuel < ascent_cost * eco.roundtrip_pulse_threshold
+
+
+func _tick_fuel_warning() -> void:
+	# One beep per crossing into the pulse — the gauge itself keeps pulsing.
+	var pulsing := _roundtrip_pulse_active()
+	if pulsing and not _fuel_pulsing:
+		Sfx.play("warning")
+	_fuel_pulsing = pulsing
 
 
 # --- readout: fuel / hull / cargo / depth / wallet ---------------------------
@@ -118,20 +145,18 @@ func _process(delta: float) -> void:
 
 func _draw_readout() -> void:
 	var font := ThemeDB.fallback_font
-	var eco := GameState.economy
 	var fuel_cap := float(Upgrades.fuel_capacity())
 	var hull_cap := float(Upgrades.hull_capacity())
 
 	# The round-trip warning (spec §9): the fuel gauge pulses when what's
 	# left approaches the estimated cost of the climb home.
-	var ascent_cost := GameState.depth * eco.fuel_ascent_per_tile * Upgrades.ascent_factor()
-	var fuel_color := Color(0.35, 0.75, 0.95)
-	if GameState.depth > 0 and GameState.fuel < ascent_cost * eco.roundtrip_pulse_threshold:
+	var fuel_color := Palette.UI_FUEL
+	if _roundtrip_pulse_active():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
-		fuel_color = Color(0.95, 0.25, 0.2).lerp(Color(0.95, 0.6, 0.2), pulse)
+		fuel_color = Palette.UI_DANGER.lerp(Palette.PRIZE_DEEP, pulse)
 
 	_bar(Vector2(12, 12), "FUEL", GameState.fuel / fuel_cap, fuel_color, font)
-	_bar(Vector2(12, 34), "HULL", GameState.hull / hull_cap, Color(0.4, 0.85, 0.45), font)
+	_bar(Vector2(12, 34), "HULL", GameState.hull / hull_cap, Palette.UI_GOOD, font)
 
 	var cargo_text := "CARGO %d/%d" % [GameState.cargo.size(), Upgrades.cargo_slots()]
 	if GameState.cargo.size() >= Upgrades.cargo_slots():
@@ -155,7 +180,7 @@ func _draw_readout() -> void:
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1,
 		14,
-		Color(1.0, 0.85, 0.4)
+		Palette.UI_GOLD
 	)
 
 
@@ -175,10 +200,12 @@ func _bar(pos: Vector2, label: String, frac: float, color: Color, font: Font) ->
 func _center_wrap(panel: Control) -> Control:
 	## True centring at any viewport size: a full-rect CenterContainer that
 	## ignores mouse itself (the stick keeps working around the panel).
+	## The shared theme rides on the wrap so every panel inherits it.
 	var wrap := CenterContainer.new()
 	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.visible = false
+	wrap.theme = _theme
 	wrap.add_child(panel)
 	return wrap
 
@@ -188,21 +215,24 @@ func _build_hub_panel() -> Control:
 	panel.custom_minimum_size = Vector2(300, 0)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 14)
+	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "SURFACE HUB"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "GARAGE"
+	UITheme.style_title(title)
 	vbox.add_child(title)
 
 	_hub_wallet = Label.new()
 	_hub_wallet.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hub_wallet.add_theme_color_override("font_color", Palette.UI_GOLD)
 	vbox.add_child(_hub_wallet)
 
 	_hub_cargo = Label.new()
 	_hub_cargo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_hub_cargo)
+
+	vbox.add_child(HSeparator.new())
 
 	_sell_button = _hub_action("SELL CARGO", _on_sell)
 	vbox.add_child(_sell_button)
@@ -219,10 +249,13 @@ func _hub_action(label: String, handler: Callable) -> Button:
 	button.text = label
 	button.custom_minimum_size = Vector2(0, 48)
 	button.pressed.connect(handler)
+	button.pressed.connect(func() -> void: Sfx.play("click"))
 	return button
 
 
-func _open_hub() -> void:
+func open_hub() -> void:
+	## The garage doorway's entry point (feedback #3) — the hub panel itself
+	## is the unchanged §9 census.
 	_refresh_hub_labels()
 	_hub_panel.visible = true
 	get_tree().paused = true
@@ -317,7 +350,7 @@ func _build_lost_panel() -> Control:
 
 	var title := Label.new()
 	title.text = "RUN LOST"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.style_title(title, Palette.UI_DANGER)
 	vbox.add_child(title)
 
 	_lost_reason = Label.new()
@@ -362,8 +395,9 @@ func _build_banner() -> Label:
 	banner.offset_bottom = 190.0
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.add_theme_font_size_override("font_size", 16)
+	banner.add_theme_color_override("font_color", Palette.UI_GOLD)
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	banner.modulate = Color(1.0, 0.85, 0.4, 0.0)
+	banner.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	return banner
 
 

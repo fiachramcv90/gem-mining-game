@@ -33,12 +33,15 @@ func _ready() -> void:
 
 	var title := Label.new()
 	title.text = "UPGRADES"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.style_title(title)
 	vbox.add_child(title)
 
 	_wallet_label = Label.new()
 	_wallet_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wallet_label.add_theme_color_override("font_color", Palette.UI_GOLD)
 	vbox.add_child(_wallet_label)
+
+	vbox.add_child(HSeparator.new())
 
 	for track in TRACKS:
 		vbox.add_child(_build_row(track))
