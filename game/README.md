@@ -4,6 +4,65 @@ The real Godot 4.3+ project, built to
 [`wayfinder/assets/0014-final-spec.md`](../wayfinder/assets/0014-final-spec.md)
 (the binding spec) using the terms of [`CONTEXT.md`](../CONTEXT.md).
 
+## Vertical slice status (session 6)
+
+NEW in session 6 — the §7 art & juice pass (make everything, spend
+nothing):
+
+- **Real tiles** (replacing the grey-box TileSet paint): 16 px tiles
+  generated procedurally in code (`TileArt.gd`) on the fixed
+  **Resurrect-64** master palette (`Palette.gd` — every colour a canonical
+  swatch, named by role). The load-bearing **reserve-saturation** rule is
+  encoded: rock ramps desaturated/earthy, gems/lava/prize own the
+  saturated hues. Bands are hue+value shifts of one shared rock ramp
+  (Topsoil warm/light → Bedrock cold/dark); halo = the same rock darker
+  with a tighter grain + darkest flecks; gas wisps, cave-in cracks, lava
+  blooms, chiselled bedrock walls. Procedural code-gen is the sanctioned
+  AI lane (spec §7) — the tiles are deliberately cheap and swappable, so a
+  hand-drawn Pixelorama atlas can replace `TileArt.gd` wholesale.
+- **The digger robot** (feedback #6): drawn in immediate mode from the
+  palette — hull, cab dome + glass, headlamp, skid plates — with all
+  motion in code (spec §7 animation budget): hover bob, flickering
+  thruster flame, a drill arm pointing along facing whose chevrons scroll
+  while drilling (reads as spin), a jabbing bit, and a landing
+  squash-and-recover tween. Zero hand-drawn frames.
+- **Juice, visual-first** (`Juice.gd` + every knob in
+  `config/JuiceConfig.gd`/`juice.tres`): short sharp screen-shake
+  (camera-offset noise, fast decay) + a one-rect flash on the beats — dig
+  thud, halo/gem break-through payoff, gem collect, hazard hit (lava
+  ticks get the small beat), sell, run lost, upgrade buy, and the §8
+  milestone banner (the SAME beat — 0008's shake+flash IS the
+  celebration). Bursts are pooled `CPUParticles2D`, 4–8 per burst, every
+  burst clamped to the existing `particle_cap` knob. `navigator.vibrate`
+  fires best-effort, additive only. A **reduce-motion toggle** (Settings
+  autoload, surfaced on the tap-to-start screen) honours
+  `prefers-reduced-motion` on auto and kills the shake; it persists via
+  the new `settings` save key — `save_version` 2→3 through the migrate
+  chain, key only added.
+- **The garage hub** (feedback #3 + #4): the hub is now a PLACE — a
+  warm-lit garage on the surface beside the spawn point (`Garage.gd`,
+  code-drawn from the palette, pulsing doorway lamp + GARAGE sign).
+  Flying into the doorway opens the hub panel, replacing the SURFACE HUB
+  button as the trigger; an arm/disarm latch means closing the hub never
+  instantly reopens it. The §9 census is UNCHANGED (4 actions + MINER'S
+  LOG + ♥ + 💾) and the hub still teaches itself. All panels (hub, shop,
+  Log, run-lost, title, corners) share one code-built Theme
+  (`UITheme.gd`): palette panels/buttons, gold headers, separators —
+  feedback #4's layout/typography pass. Still default-font; a pixel font
+  is a later asset call.
+- **Sound, wired but placeholder** (`Sfx.gd`): the full §11-safe playback
+  architecture — Sample playback only, every sound an `AudioStreamWAV`,
+  no `AudioStreamGenerator`, no runtime bus effects; the tap-to-start tap
+  is the unlock gesture and starts the loops. 13 one-shots (dig thud,
+  halo break, gem/prize, sell, upgrade, milestone, hull hit, gas hiss,
+  cave-in rumble, fuel warning, run-lost sting, UI click), an engine-hum
+  loop that follows the stick, and **3 depth-crossfaded ambient loops**
+  (volume crossfade between depth anchors — playback, not a bus effect).
+  **Every sample is a code-synthesized stand-in** generated at boot: the
+  architecture is real, the assets are not. The real palette
+  (jsfxr/ChipTone + Audacity foley thud + Bosca Ceoil looped-OGG music)
+  drops into the same names later.
+
 ## Vertical slice status (session 5)
 
 NEW in session 5 — the Miner's Log + onboarding (specs §8/§9), and the hub
@@ -65,26 +124,38 @@ ascent fuel stepped down 1.0 → 0.7 (feedback #5, owner decision).
 **Stubbed seams (later sessions):** Hoist ascent payoff polish, best-effort
 mid-run save state (`run` stays `null` — every load starts at the surface),
 the itch.io page itself (`support_url` stays the empty placeholder knob),
-art/audio (§7 — darkness/glint/glow shader is in; tiles, digger sprite,
-hub layout/typography and all SFX/music stay grey-box; feedback #3's
-physical-garage hub idea is judged an art-session item — see FEEDBACK.md).
+real audio assets (§7/§11 — the playback architecture, crossfade and
+unlock gesture are live in `Sfx.gd`, but every sample is a code-synthesized
+placeholder; the hand-made jsfxr/foley/Bosca-Ceoil palette replaces them by
+name), a hand-drawn tile atlas (the procedural `TileArt.gd` tiles are
+first-draft, swappable wholesale), a real pixel font (all UI is themed
+default-font), and the §16 on-device memory-profiling task (its
+chunk-streaming prerequisite is met).
 
 ## Layout
 
-- `config/` — `EconomyConfig` / `WorldgenConfig` / `HazardConfig` resources:
-  every Appendix A knob as a named `@export` default. Re-balancing is a
-  slider drag.
+- `config/` — `EconomyConfig` / `WorldgenConfig` / `HazardConfig` /
+  `JuiceConfig` resources: every Appendix A (and §7 juice/audio) knob as a
+  named `@export` default. Re-balancing is a slider drag.
 - `scripts/autoload/` — `GameState`, `Wallet`, `Upgrades`, `MinersLog`
   (the §8 stats + milestones, event-pinned, self-healing), `Nudges` (the
-  §9 nudge state — the only two persisted onboarding fields), `SaveManager`
-  (the §13 envelope, the SaveBlob seam, the migrate chain — now with a real
-  v1→v2 step — snapshot triggers, and the browser hooks —
-  `visibilitychange` flush, `storage.persist()`, download/file-input
-  hatch).
+  §9 nudge state), `Settings` (the §7 reduce-motion toggle,
+  prefers-reduced-motion-aware), `SaveManager` (the §13 envelope, the
+  SaveBlob seam, the migrate chain — v1→v2→v3 — snapshot triggers, and the
+  browser hooks), `Juice` (the §7 shake/flash/pooled-particle/vibrate
+  beats — also the §8 milestone celebration), `Sfx` (the §11-safe sound
+  layer: sample pool, engine hum, depth-crossfaded ambient; placeholder
+  synth samples).
 - `scripts/ui/` — `UpgradeShop` (the §4 ratchet UI), `MinersLogScreen`
   (the single §8 Log screen), `SaveCorner` (the permanent 💾 save-safety
   corner + the A2HS callout nudge), `SupportCorner` (the quiet ♥ §15
-  link), and `TitleScreen` (tap-to-start + the silent-switch caption).
+  link), `TitleScreen` (tap-to-start + the silent-switch caption + the
+  motion toggle), and `UITheme` (the one shared §7 panel theme).
+- `scripts/Palette.gd` + `scripts/TileArt.gd` — the Resurrect-64 master
+  palette (named roles, reserve-saturation encoded) and the procedural
+  16 px tile painter (deliberately swappable for a hand-drawn atlas).
+- `scripts/Garage.gd` — the physical surface hub (feedback #3): doorway
+  trigger with an arm/disarm latch; the census panel itself is the HUD's.
 - `scripts/Worldgen.gd` — pure function of `(world_seed, chunk coords)`;
   never runtime `randf()` (gas + cave-in placement included: per-tile
   hashes with distinct salts; lava: its own seeded noise channel).

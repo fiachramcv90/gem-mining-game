@@ -24,13 +24,14 @@ func _ready() -> void:
 
 	var title := Label.new()
 	title.text = "MINER'S LOG"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.style_title(title)
 	vbox.add_child(title)
 
 	# The record, shown big (spec §8); the rest of the stats read as a list.
 	_deepest_label = Label.new()
 	_deepest_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_deepest_label.add_theme_font_size_override("font_size", 22)
+	_deepest_label.add_theme_color_override("font_color", Palette.UI_GOLD)
 	vbox.add_child(_deepest_label)
 
 	for key: String in [

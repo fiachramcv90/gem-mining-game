@@ -10,17 +10,9 @@ extends Node2D
 # Atlas columns: 0-4 band rock, 5-9 band halo, 10-14 gems T1-T5,
 # 15 prize, 16 bedrock, 17-20 gas tell for bands Clay-Bedrock,
 # 21-22 cracked/unstable tell for Granite-Bedrock, 23 lava.
-# Grey-box colours; real art direction is spec §7.
+# Painted by TileArt on the Resurrect-64 palette (spec §7).
 const ATLAS_TILES := 24
 const LAVA_COLUMN := 23
-const BAND_COLORS: Array[Color] = [
-	Color8(152, 112, 72),  # Topsoil — warm/light
-	Color8(138, 92, 66),  # Clay
-	Color8(120, 98, 74),  # Sandstone
-	Color8(96, 88, 86),  # Granite
-	Color8(70, 72, 84),  # Bedrock band — cold/dark
-]
-const BEDROCK_COLOR := Color8(34, 32, 40)
 
 var player: Node2D
 var worldgen: Worldgen
@@ -210,6 +202,12 @@ func dig(tile: Vector2i) -> void:
 	var kind := Worldgen.kind_of(code)
 	if kind == Worldgen.Kind.AIR or kind == Worldgen.Kind.BEDROCK or kind == Worldgen.Kind.LAVA:
 		return
+	# The dig beat (spec §7): debris burst + micro-shake + thud; a halo or
+	# gem break-through pops slightly bigger — the telegraph's payoff.
+	var px_f := float(worldgen.config.tile_px)
+	Juice.dig_beat(
+		Vector2(tile) * px_f + Vector2(px_f, px_f) * 0.5, worldgen.band_index(tile.y), kind
+	)
 	GameState.mark_dug(tile)
 	rock.erase_cell(tile)
 	var cc := GameState.chunk_of(tile)
@@ -330,24 +328,24 @@ func _spawn_pickup(cc: Vector2i, tile: Vector2i, tier: int) -> void:
 	_chunk_pickups[cc].append(pickup)
 
 
-# --- runtime grey-box TileSet -------------------------------------------------
+# --- the runtime TileSet, painted by TileArt (spec §7) -------------------------
 
 
 func _build_tile_set() -> TileSet:
 	var px: int = GameState.world.tile_px
 	var img := Image.create(ATLAS_TILES * px, px, false, Image.FORMAT_RGBA8)
 	for i in range(5):
-		_paint_rock(img, i, px, BAND_COLORS[i], false)
-		_paint_rock(img, 5 + i, px, BAND_COLORS[i].darkened(0.28), true)
+		TileArt.paint_rock(img, i, px, i, false)
+		TileArt.paint_rock(img, 5 + i, px, i, true)
 	for i in range(5):
-		_paint_gem(img, 10 + i, px, GemPickup.GEM_COLORS[i])
-	_paint_gem(img, 15, px, GemPickup.PRIZE_COLOR)
-	_paint_rock(img, 16, px, BEDROCK_COLOR, false)
+		TileArt.paint_gem(img, 10 + i, px, i + 1)
+	TileArt.paint_prize(img, 15, px)
+	TileArt.paint_wall(img, 16, px)
 	for i in range(1, 5):
-		_paint_gas(img, 16 + i, px, BAND_COLORS[i])
+		TileArt.paint_gas(img, 16 + i, px, i)
 	for i in range(3, 5):
-		_paint_unstable(img, 18 + i, px, BAND_COLORS[i])
-	_paint_lava(img, LAVA_COLUMN, px)
+		TileArt.paint_unstable(img, 18 + i, px, i)
+	TileArt.paint_lava(img, LAVA_COLUMN, px)
 
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(px, px)
@@ -371,85 +369,6 @@ func _build_tile_set() -> TileSet:
 		td.add_collision_polygon(0)
 		td.set_collision_polygon_points(0, 0, full_rect)
 	return ts
-
-
-func _paint_rock(img: Image, col: int, px: int, color: Color, tight_grain: bool) -> void:
-	# Flat colour + a deterministic speckle so tiles don't read as one slab;
-	# halo rock gets a tighter, darker grain (its telegraph look, spec §7).
-	for y in range(px):
-		for x in range(px):
-			var c := color
-			var speckle := (x * 31 + y * 17 + col * 7) % (3 if tight_grain else 5)
-			if speckle == 0:
-				c = color.darkened(0.18)
-			elif speckle == 1:
-				c = color.lightened(0.08)
-			img.set_pixel(col * px + x, y, c)
-
-
-func _paint_gas(img: Image, col: int, px: int, base: Color) -> void:
-	# The gas tell (spec §5/§7): band rock veined with a sickly green
-	# shimmer tint — reads as not-rock at a glance. The darkness overlay
-	# hides it beyond the lit radius: the tell renders only in the light.
-	var tint := Color8(120, 210, 130)
-	for y in range(px):
-		for x in range(px):
-			var c := base
-			var speckle := (x * 13 + y * 29 + col * 7) % 4
-			if speckle == 0:
-				c = base.lerp(tint, 0.75)
-			elif speckle == 2:
-				c = base.lerp(tint, 0.35).lightened(0.05)
-			img.set_pixel(col * px + x, y, c)
-
-
-func _paint_unstable(img: Image, col: int, px: int, base: Color) -> void:
-	# The cave-in tell (spec §5/§7): band rock split by dark jagged cracks
-	# with a dusting of pale chips — reads as "do not undermine" at a glance.
-	# The darkness overlay hides it beyond the lit radius: the tell renders
-	# only in the light, no dice roll.
-	_paint_rock(img, col, px, base, false)
-	var crack := base.darkened(0.55)
-	var chip := base.lightened(0.25)
-	var mid := px / 2
-	for y in range(px):
-		var wob := (y * 5 + col) % 3 - 1 + (y % 4) - 2
-		img.set_pixel(col * px + clampi(mid + wob, 0, px - 1), y, crack)
-	for x in range(mid):
-		var yy := clampi(px / 3 + (x * 3) % 2, 0, px - 1)
-		img.set_pixel(col * px + x, yy, crack)
-		if x % 3 == 0:
-			img.set_pixel(col * px + x, clampi(yy + 1, 0, px - 1), chip)
-
-
-func _paint_lava(img: Image, col: int, px: int) -> void:
-	# Lava (spec §5/§7): molten saturated orange — one of the few owners of
-	# saturated hue (reserve-saturation rule), self-lit through darkness via
-	# the shader glow rather than this texture.
-	var deep := Color8(168, 38, 18)
-	var mid := Color8(232, 92, 24)
-	var hot := Color8(255, 168, 48)
-	for y in range(px):
-		for x in range(px):
-			var c := mid
-			var speckle := (x * 23 + y * 41 + x * y) % 7
-			if speckle == 0:
-				c = hot
-			elif speckle <= 2:
-				c = deep
-			img.set_pixel(col * px + x, y, c)
-
-
-func _paint_gem(img: Image, col: int, px: int, color: Color) -> void:
-	var dark := Color8(52, 48, 46)
-	var mid := px / 2
-	for y in range(px):
-		for x in range(px):
-			var c := dark
-			var d := absi(x - mid) + absi(y - mid)
-			if d <= px / 3:
-				c = color.lightened(0.25) if d <= 1 else color
-			img.set_pixel(col * px + x, y, c)
 
 
 func _atlas_for_code(code: int) -> Vector2i:

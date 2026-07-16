@@ -92,7 +92,7 @@ func _build_panel() -> Control:
 
 	var title := Label.new()
 	title.text = "SAVE SAFETY"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.style_title(title)
 	vbox.add_child(title)
 
 	var blurb := Label.new()

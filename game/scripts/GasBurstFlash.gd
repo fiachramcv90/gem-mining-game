@@ -23,5 +23,9 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, Color(0.62, 0.9, 0.5, alpha), 2.5)
-	draw_arc(Vector2.ZERO, radius * 0.6, 0.0, TAU, 20, Color(0.85, 1.0, 0.7, alpha * 0.7), 1.5)
+	var wisp := Palette.GAS_DEEP
+	var pale := Palette.GAS_WISP
+	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, Color(wisp.r, wisp.g, wisp.b, alpha), 2.5)
+	draw_arc(
+		Vector2.ZERO, radius * 0.6, 0.0, TAU, 20, Color(pale.r, pale.g, pale.b, alpha * 0.7), 1.5
+	)

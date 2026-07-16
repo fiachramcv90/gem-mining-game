@@ -21,11 +21,23 @@ func _ready() -> void:
 	player.stick = hud.stick
 	darkness.player = player
 	darkness.mine = mine
+	# The juice layer's shake target and particle-pool home (spec §7).
+	Juice.register(player.get_node("Camera2D"), mine)
 	var px := float(GameState.world.tile_px)
-	player.spawn_position = Vector2(px * 0.5, -3.0 * px)
+	# Spawn beside the garage door (feedback #3): home is the first thing
+	# you see, and flying into it is how the hub opens.
+	player.spawn_position = Vector2(-px * 1.0, -2.0 * px)
 	GameState.run_lost.connect(_on_run_lost)
 	player.respawn()
 	mine.warm_start()
+
+	# The garage (feedback #3): the physical hub trigger, drawn between the
+	# mine and the player so the digger flies in front of it.
+	var garage := Garage.new()
+	garage.player = player
+	garage.hud = hud
+	add_child(garage)
+	move_child(garage, mine.get_index() + 1)
 
 
 func _on_run_lost(_reason: String, _cargo_lost: int) -> void:
@@ -35,15 +47,18 @@ func _on_run_lost(_reason: String, _cargo_lost: int) -> void:
 
 
 func _draw() -> void:
-	# Grey-box sky + surface line so "above ground" reads at a glance. The
+	# Palette sky + surface line so "above ground" reads at a glance. The
 	# sky spans well past the shaft: the unbounded side walls (feedback #2)
 	# draw over it, so the cliff tops read against blue, never the clear
-	# colour.
+	# colour. Two tones: deeper blue up high, hazy near the horizon.
 	var shaft_w := GameState.world.shaft_width * GameState.world.tile_px
 	var half_w := shaft_w * 0.5
 	draw_rect(
-		Rect2(Vector2(-shaft_w * 3.0, -2000.0), Vector2(shaft_w * 6.0, 2000.0)),
-		Color(0.45, 0.62, 0.78),
+		Rect2(Vector2(-shaft_w * 3.0, -2000.0), Vector2(shaft_w * 6.0, 1880.0)),
+		Palette.SKY_HIGH,
 		true
 	)
-	draw_line(Vector2(-half_w, 0), Vector2(half_w, 0), Color(0.25, 0.2, 0.12), 2.0)
+	draw_rect(
+		Rect2(Vector2(-shaft_w * 3.0, -120.0), Vector2(shaft_w * 6.0, 120.0)), Palette.SKY_LOW, true
+	)
+	draw_line(Vector2(-half_w, 0), Vector2(half_w, 0), Palette.SURFACE_LINE, 2.0)

@@ -7,6 +7,50 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-16 — session-6 build (the §7 art & juice pass)
+
+### Items #3, #4, #6 — APPLIED (garage hub, layout/typography, digger robot)
+
+All three standing art items shipped this session; see the README's
+session-6 block for what landed. Judgments to make on-device:
+
+- **#3 garage:** does flying into the doorway read as "go home", and does
+  the arm/disarm latch ever misfire (hub popping open when skimming the
+  surface, or refusing to open on a slow entry)? The trigger geometry is
+  `Garage.DOOR_RECT` — a constant, not a knob, widen it there if entry
+  feels finicky. The census is untouched; DESCEND still exits.
+- **#6 robot:** does the drill read as *drilling* (scrolling chevrons +
+  jab) at 3× zoom on a phone, and does the landing squash land as feel
+  rather than glitch? All motion constants are code-side by design
+  (spec §7 near-zero-frames budget) — flag anything that needs to become
+  a knob.
+- **#4 typography:** default font at themed sizes — if it reads cheap on
+  device, the next asset call is a pixel font, not more theme tuning.
+
+### Session-4 danger knobs + §17 onboarding items — STILL PENDING ON-DEVICE
+
+This session's verification was again headless + CI only (no display in
+the build environment), so the standing on-device watch list carries over
+unchanged, now on a build where the juice IS live as required:
+`cavein_telegraph_secs` 0.45, the lava glow look (`lava_glow_radius` 6),
+the feedback-#1 falls note (`fall_dmg_per_tile` 4 / `fall_grace_tiles`
+3), the ghost line's lifetime, the round-trip pulse at
+`roundtrip_pulse_threshold` 1.3, and the session-5 title-screen centring
+fix. No knobs were changed this session — nothing was re-judged blind.
+
+### New session-6 watch items (art & juice, tune by eye)
+
+- Shake/flash sizing: `JuiceConfig` knobs (`shake_*`, `flash_*`). The
+  hazard beat treats ≤6 damage as the small beat so lava ticks never
+  strobe — if Bedrock still flickers red, that threshold is in
+  `Juice._on_hazard_survived` (make it a knob if it needs tuning).
+- The reserve-saturation read: do gems/gas/lava pop against the rock at
+  the edge of the lit radius, and do the five band ramps read as one
+  descent? All swatches live in `Palette.gd`.
+- Placeholder audio: synth stand-ins only — judge the *wiring* (does the
+  dig thud land on the beat, does the ambient crossfade track depth,
+  does the silent switch story hold), not the sounds themselves.
+
 ## 2026-07-16 — session-5 build (Miner's Log, onboarding, hub census)
 
 ### Item #3 (hub as a physical garage) — judged: stays for the art session

@@ -10,10 +10,12 @@ extends Control
 
 var _caption: Label
 var _support: Button
+var _motion: Button
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	theme = UITheme.build()
 
 	# A top-level Control added to a CanvasLayer at runtime is NOT auto-sized
 	# to the viewport until the first resize fires — and the title is the one
@@ -68,17 +70,45 @@ func _ready() -> void:
 	vbox.add_child(_caption)
 
 	# The ♥ Support link (spec §15): quiet, cornered, never a modal.
+	# Explicit anchors AND offsets: correct whatever size the parent has at
+	# this moment (the session-5 layout lesson, applied to corners too).
 	_support = Button.new()
 	_support.flat = true
 	_support.text = "also on itch.io"
 	_support.custom_minimum_size = Vector2(150, 44)
-	_support.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_support.position = Vector2(-162, -56)
+	_corner_layout(_support, true)
 	_support.modulate = Color(1, 1, 1, 0.65)
 	_support.pressed.connect(_on_support)
 	add_child(_support)
 
+	# The §7 reduce-motion/shake toggle's settings surface: quiet, cornered,
+	# outside the closed hub census; honours prefers-reduced-motion on auto
+	# and persists via the save's `settings` key (save_version 3).
+	_motion = Button.new()
+	_motion.flat = true
+	_motion.custom_minimum_size = Vector2(170, 44)
+	_corner_layout(_motion, false)
+	_motion.modulate = Color(1, 1, 1, 0.65)
+	_motion.pressed.connect(_on_motion_toggle)
+	add_child(_motion)
+	_refresh_motion_label()
+	Settings.settings_changed.connect(_refresh_motion_label)
+
 	get_tree().paused = true
+
+
+func _corner_layout(button: Button, right: bool) -> void:
+	## Pin a corner button to the bottom edge with a 12 px margin, via
+	## explicit anchors + offsets (never position-after-preset).
+	var w := button.custom_minimum_size.x
+	button.anchor_left = 1.0 if right else 0.0
+	button.anchor_right = 1.0 if right else 0.0
+	button.anchor_top = 1.0
+	button.anchor_bottom = 1.0
+	button.offset_left = -12.0 - w if right else 12.0
+	button.offset_right = -12.0 if right else 12.0 + w
+	button.offset_top = -56.0
+	button.offset_bottom = -12.0
 
 
 func _fit_to_viewport() -> void:
@@ -108,7 +138,19 @@ func _start() -> void:
 	visible = false
 	Nudges.mark_audio_hint_shown()
 	SaveManager.save_now()
+	# This tap IS the Web Audio unlock gesture (spec §11) — the sound layer
+	# starts its loops here and nowhere earlier.
+	Sfx.unlock()
 	get_tree().paused = false
+
+
+func _on_motion_toggle() -> void:
+	Settings.cycle_motion()
+	SaveManager.save_now()
+
+
+func _refresh_motion_label() -> void:
+	_motion.text = Settings.motion_label()
 
 
 func _on_support() -> void:

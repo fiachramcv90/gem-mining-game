@@ -24,7 +24,10 @@ Wallet="*res://scripts/autoload/Wallet.gd"
 Upgrades="*res://scripts/autoload/Upgrades.gd"
 MinersLog="*res://scripts/autoload/MinersLog.gd"
 Nudges="*res://scripts/autoload/Nudges.gd"
+Settings="*res://scripts/autoload/Settings.gd"
 SaveManager="*res://scripts/autoload/SaveManager.gd"
+Sfx="*res://scripts/autoload/Sfx.gd"
+Juice="*res://scripts/autoload/Juice.gd"
 
 [display]
 

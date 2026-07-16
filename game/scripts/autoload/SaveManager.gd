@@ -15,7 +15,7 @@ signal import_succeeded
 signal import_failed(reason: String)
 
 const SAVE_PATH := "user://save.dat"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 const EXPORT_FILENAME := "gem-miner-save.dat"
 const IMPORT_INPUT_ID := "gem-miner-import"
 
@@ -109,11 +109,15 @@ func build_envelope() -> Dictionary:
 			"audio_hint_shown": Nudges.audio_hint_shown,
 			"a2hs_dismissed": Nudges.a2hs_dismissed,
 		},
+		"settings":  # §7 reduce-motion toggle (session 6)
+		{
+			"motion_mode": Settings.motion_mode,
+		},
 		"meta":
 		{
 			"saved_at": int(Time.get_unix_time_from_system()),
 			"play_secs": 0,
-			"schema_note": "vertical slice 5",
+			"schema_note": "vertical slice 6",
 		},
 	}
 
@@ -144,6 +148,7 @@ func apply_envelope(env: Dictionary) -> void:
 	Upgrades.hoist = bool(up.get("hoist", false))
 	MinersLog.load_state(_dict_in(env, "stats"), _dict_in(env, "milestones"))
 	Nudges.load_state(_dict_in(env, "nudges"))
+	Settings.load_state(_dict_in(env, "settings"))
 	GameState.cargo.clear()
 	GameState.top_up()
 	GameState.set_depth(0)
@@ -183,6 +188,8 @@ func _migrate(env: Dictionary) -> Dictionary:
 		match int(env.get("save_version", 0)):
 			1:
 				env = _migrate_1_to_2(env)
+			2:
+				env = _migrate_2_to_3(env)
 			_:
 				return {}
 	return env
@@ -200,6 +207,15 @@ func _migrate_1_to_2(env: Dictionary) -> Dictionary:
 	if not (env.get("nudges") is Dictionary):
 		env["nudges"] = {"audio_hint_shown": false, "a2hs_dismissed": 0}
 	env["save_version"] = 2
+	return env
+
+
+func _migrate_2_to_3(env: Dictionary) -> Dictionary:
+	## v2 -> v3 (session 6): the `settings` key — the §7 reduce-motion
+	## toggle's home. Key only ADDED; a v2 save loads clean on auto.
+	if not (env.get("settings") is Dictionary):
+		env["settings"] = {"motion_mode": Settings.Motion.AUTO}
+	env["save_version"] = 3
 	return env
 
 

@@ -4,20 +4,13 @@ extends Area2D
 ## simply stays in the ground (spec §1) — it persists as a dug-but-uncollected
 ## delta and respawns with its chunk.
 ##
-## Owns the gem palette (saturated hues are reserved for gems/prize — the
-## reserve-saturation rule, spec §7); Mine paints its atlas from these.
-
-const GEM_COLORS: Array[Color] = [
-	Color8(90, 200, 120),  # T1
-	Color8(80, 190, 220),  # T2
-	Color8(95, 120, 235),  # T3
-	Color8(175, 95, 230),  # T4
-	Color8(240, 90, 120),  # T5
-]
-const PRIZE_COLOR := Color8(255, 205, 70)
+## Colours come from Palette (Resurrect-64): saturated hues are reserved for
+## gems/prize — the reserve-saturation rule, spec §7.
 
 var tier := 1  # 1..5, or Worldgen.PRIZE_TIER
 var tile := Vector2i.ZERO
+
+var _bob_phase := 0.0
 
 
 func _ready() -> void:
@@ -29,6 +22,12 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 	body_entered.connect(_on_body_entered)
+	# Deterministic-looking desync without randf: phase from the tile coords.
+	_bob_phase = float((tile.x * 7 + tile.y * 13) % 628) * 0.01
+
+
+func _process(_delta: float) -> void:
+	queue_redraw()
 
 
 func _on_body_entered(body: Node2D) -> void:
@@ -36,11 +35,26 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if GameState.try_collect(tier):
 		GameState.mark_collected(tile)
+		# The collect beat (spec §7): sparkle burst + chime; the prize sings.
+		Juice.gem_beat(global_position, tier)
 		queue_free()
 
 
 func _draw() -> void:
-	var color := PRIZE_COLOR if tier == Worldgen.PRIZE_TIER else GEM_COLORS[tier - 1]
-	var pts := PackedVector2Array([Vector2(0, -5), Vector2(5, 0), Vector2(0, 5), Vector2(-5, 0)])
-	draw_colored_polygon(pts, color)
-	draw_polyline(pts + PackedVector2Array([Vector2(0, -5)]), color.lightened(0.4), 1.0)
+	var deep := Palette.gem_deep(tier)
+	var light := Palette.gem_light(tier)
+	# A freed gem hovers with a slight bob and a slow facet twinkle — cheap
+	# immediate-mode motion, no frames (spec §7 animation budget).
+	var t := Time.get_ticks_msec() * 0.001 + _bob_phase
+	var bob := Vector2(0.0, sin(t * 2.4) * 1.2)
+	var pts := PackedVector2Array(
+		[bob + Vector2(0, -5), bob + Vector2(5, 0), bob + Vector2(0, 5), bob + Vector2(-5, 0)]
+	)
+	draw_colored_polygon(pts, deep)
+	# Upper-left facet catches the light.
+	draw_colored_polygon(
+		PackedVector2Array([bob + Vector2(0, -5), bob + Vector2(-5, 0), bob + Vector2(0, 0)]), light
+	)
+	draw_polyline(pts + PackedVector2Array([pts[0]]), deep.darkened(0.35), 1.0)
+	var twinkle := 0.5 + 0.5 * sin(t * 3.1)
+	draw_circle(bob + Vector2(-1, -2), 1.0, Color.WHITE.lerp(light, 0.4 + 0.4 * twinkle))

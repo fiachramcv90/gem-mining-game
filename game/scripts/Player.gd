@@ -26,6 +26,14 @@ var _drill_cell := Vector2i(-9999, -9999)
 var _drill_progress := 0.0
 var _prev_y_tiles := 0.0
 
+# Robot motion state (spec §7: motion = tweens + code, no hand frames).
+## Vertical squash factor, tweened on landing (1 = rest).
+var _squash := 1.0
+## Drill-spin phase; advances only while drilling.
+var _spin := 0.0
+var _drilling := false
+var _last_intent := Vector2.ZERO
+
 # Fall tracking (spec §5): anchor y where the drop began, whether an upward
 # thrust-brace was held at any point during it.
 var _falling := false
@@ -53,8 +61,12 @@ func tile_px() -> float:
 
 func _physics_process(delta: float) -> void:
 	var intent := _current_intent()
+	_last_intent = intent
 	if intent.length() > intent_threshold:
 		facing = intent.normalized()
+	if _drilling:
+		_spin += delta * 26.0
+	Sfx.set_thrust(intent.length())
 
 	# Floaty (spec §2): thrust in the stick direction, light gravity,
 	# slight glide damping — descent and the self-powered climb home are
@@ -99,6 +111,7 @@ func _track_fall(intent: Vector2) -> void:
 			_braced = true
 		if landed:
 			var tiles := (global_position.y - _fall_start_y) / tile_px()
+			_play_land_squash(tiles)
 			# Hazards live in the mine (spec §5) — landing on the surface
 			# ground (depth 0) is safe, so hub bounces never chip the hull.
 			if global_position.y > 0.0:
@@ -116,6 +129,7 @@ func _track_fall(intent: Vector2) -> void:
 
 
 func _do_dig(intent: Vector2, delta: float) -> void:
+	_drilling = false
 	if mine == null or intent.length() < intent_threshold:
 		_reset_drill()
 		return
@@ -133,6 +147,7 @@ func _do_dig(intent: Vector2, delta: float) -> void:
 	if target != _drill_cell:
 		_drill_cell = target
 		_drill_progress = 0.0
+	_drilling = true
 	var need := drill_time_for(target)
 	_drill_progress += delta
 	if _drill_progress >= need:
@@ -178,7 +193,21 @@ func _account_fuel() -> void:
 	GameState.set_depth(int(floor(maxf(0.0, y_tiles))))
 
 
-# --- grey-box drawing ---------------------------------------------------------
+# --- the digger robot (feedback #6, spec §7) -----------------------------------
+# A small robot with a drill, on screen 100% of the time — drawn in
+# immediate mode from the Palette, animated by code (hover bob, thruster
+# flame, spinning drill, landing squash tween): near-zero hand-drawn frames.
+
+
+func _play_land_squash(tiles_fallen: float) -> void:
+	## Landing squash-and-recover, scaled a little by how far we dropped.
+	if tiles_fallen < 0.5:
+		return
+	_squash = maxf(0.55, 0.8 - tiles_fallen * 0.03)
+	var t := create_tween()
+	t.tween_property(self, "_squash", 1.0, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(
+		Tween.EASE_OUT
+	)
 
 
 func _draw() -> void:
@@ -192,10 +221,82 @@ func _draw() -> void:
 		var need := drill_time_for(_drill_cell)
 		if need > 0.0:
 			var frac := clampf(_drill_progress / need, 0.0, 1.0)
-			draw_arc(
-				center, px * 0.42, -PI / 2, -PI / 2 + TAU * frac, 20, Color(1.0, 0.85, 0.3), 2.0
-			)
-	# Body + facing nose.
-	draw_rect(Rect2(Vector2(-6, -6), Vector2(12, 12)), Color(0.92, 0.76, 0.26), true)
-	draw_rect(Rect2(Vector2(-6, -6), Vector2(12, 12)), Color(0.2, 0.15, 0.05), false, 1.5)
-	draw_line(Vector2.ZERO, facing * 8.0, Color(0.15, 0.1, 0.0), 2.0)
+			var ring := Palette.UI_GOLD
+			draw_arc(center, px * 0.42, -PI / 2, -PI / 2 + TAU * frac, 20, ring, 2.0)
+	_draw_robot()
+
+
+func _draw_robot() -> void:
+	var t := Time.get_ticks_msec() * 0.001
+	var thrusting := _last_intent.length() > intent_threshold
+	# Hover bob: gentle at idle, tighter under thrust.
+	var bob := Vector2(0.0, sin(t * 3.2) * (1.2 if not thrusting else 0.5))
+	# Landing squash: wider and shorter, recovering elastically.
+	var squash_scale := Vector2(1.0 + (1.0 - _squash) * 0.6, _squash)
+
+	# Thruster flame (under the body, before the squash transform so it
+	# stretches with the hull): flickers, longer under thrust. (Floating
+	# motion mode never reports a floor, so the flame keys off intent.)
+	if thrusting:
+		var flame_len := 3.0 + sin(t * 31.0) * 1.2 + _last_intent.length() * 3.0
+		var base_y := bob.y + 6.0 * _squash
+		draw_colored_polygon(
+			PackedVector2Array(
+				[
+					Vector2(-2.5, base_y),
+					Vector2(2.5, base_y),
+					Vector2(0.0, base_y + flame_len),
+				]
+			),
+			Palette.FLAME_MID
+		)
+		draw_colored_polygon(
+			PackedVector2Array(
+				[
+					Vector2(-1.2, base_y),
+					Vector2(1.2, base_y),
+					Vector2(0.0, base_y + flame_len * 0.55),
+				]
+			),
+			Palette.FLAME_HOT
+		)
+
+	draw_set_transform(bob, 0.0, squash_scale)
+	# Skid plates + feet.
+	draw_rect(Rect2(-6, 4, 12, 2), Palette.DIGGER_METAL_DARK, true)
+	draw_rect(Rect2(-6, 5, 3, 2), Palette.DIGGER_DARK, true)
+	draw_rect(Rect2(3, 5, 3, 2), Palette.DIGGER_DARK, true)
+	# Hull.
+	draw_rect(Rect2(-5, -3, 10, 7), Palette.DIGGER_BODY, true)
+	draw_rect(Rect2(-5, 2, 10, 2), Palette.DIGGER_SHADE, true)
+	draw_rect(Rect2(-5, -3, 10, 7), Palette.DIGGER_DARK, false, 1.0)
+	# Rivets.
+	draw_rect(Rect2(-4, -2, 1, 1), Palette.DIGGER_DARK, true)
+	draw_rect(Rect2(3, -2, 1, 1), Palette.DIGGER_DARK, true)
+	# Cab dome + glass.
+	draw_rect(Rect2(-3, -6, 6, 3), Palette.DIGGER_BODY, true)
+	draw_rect(Rect2(-3, -6, 6, 3), Palette.DIGGER_DARK, false, 1.0)
+	draw_rect(Rect2(-2, -5, 4, 2), Palette.DIGGER_GLASS, true)
+	draw_rect(Rect2(-2, -5, 1, 1), Color.WHITE, true)
+	# Headlamp: a warm pixel on the facing side of the dome (the Light track
+	# made visible on the machine).
+	var lamp := Vector2(signf(facing.x) * 3.0 if absf(facing.x) > 0.3 else 0.0, -4.0)
+	draw_rect(Rect2(lamp - Vector2(0.5, 0.5), Vector2(1.5, 1.5)), Palette.PRIZE_GLINT, true)
+
+	# The drill arm, pointing along facing; the bit's chevrons scroll while
+	# drilling so it reads as spinning — code motion, not frames.
+	draw_set_transform(bob + facing * 5.0, facing.angle(), squash_scale)
+	draw_rect(Rect2(-1, -2.5, 3, 5), Palette.DIGGER_METAL_DARK, true)
+	var jab := 0.0
+	if _drilling:
+		jab = absf(sin(_spin * 2.0)) * 1.2
+	var tip := Vector2(7.0 + jab, 0.0)
+	draw_colored_polygon(
+		PackedVector2Array([Vector2(2, -2.5), Vector2(2, 2.5), tip]), Palette.DIGGER_METAL
+	)
+	for i in range(2):
+		var phase := fposmod(_spin + float(i) * 2.6, 5.2) / 5.2
+		var cx := 2.0 + phase * 4.0
+		var half_h := 2.5 * (1.0 - phase * 0.8)
+		draw_line(Vector2(cx, -half_h), Vector2(cx + 0.8, half_h), Palette.DIGGER_METAL_DARK, 1.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
