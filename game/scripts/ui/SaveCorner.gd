@@ -1,13 +1,21 @@
 class_name SaveCorner
 extends Control
 ## The permanent 💾 save-safety corner (spec §9/§13): the forever home of
-## save export/import — a quiet fixture of the surface hub, never a
+## everything that protects the save — the Add-to-Home-Screen how-to and
+## save export/import. A quiet fixture of the surface hub, never a
 ## dismissable nudge (import can't live behind something that stops
-## showing). The Add-to-Home-Screen how-to joins it in a later session
-## (0013). Button text is "SAVE" because the default font has no emoji
+## showing). Button text is "SAVE" because the default font has no emoji
 ## glyph — the 💾 is the corner's identity, not a literal glyph.
+##
+## The A2HS NUDGE (spec §9) is a temporary callout label on this permanent
+## glyph: it appears once the save holds something worth protecting (first
+## sell or first run lost), persists passively until installed or
+## dismissed, re-shows once after a later run lost, and is suppressed when
+## already running standalone — all judged by Nudges.a2hs_callout_active().
 
 var _corner_button: Button
+var _callout: Label
+var _callout_dismiss: Button
 var _panel: Control
 var _confirm: Control
 var _status: Label
@@ -26,6 +34,30 @@ func _ready() -> void:
 	_corner_button.pressed.connect(_open)
 	add_child(_corner_button)
 
+	# The callout rides beside the glyph; tapping it opens the same panel
+	# ("tap for how"), the small X dismisses the nudge but never the corner.
+	# A tappable Label, not a Button: it must wrap to two quiet lines.
+	_callout = Label.new()
+	_callout.text = "add to Home Screen so your mine survives — tap for how"
+	_callout.custom_minimum_size = Vector2(230, 44)
+	_callout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_callout.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_callout.add_theme_font_size_override("font_size", 11)
+	_callout.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_callout.position = Vector2(84, -56)
+	_callout.modulate = Color(1.0, 0.9, 0.55)
+	_callout.mouse_filter = Control.MOUSE_FILTER_STOP
+	_callout.gui_input.connect(_on_callout_input)
+	add_child(_callout)
+
+	_callout_dismiss = Button.new()
+	_callout_dismiss.text = "X"
+	_callout_dismiss.custom_minimum_size = Vector2(32, 44)
+	_callout_dismiss.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_callout_dismiss.position = Vector2(318, -56)
+	_callout_dismiss.pressed.connect(_on_callout_dismissed)
+	add_child(_callout_dismiss)
+
 	_panel = _wrap_center(_build_panel())
 	add_child(_panel)
 	_confirm = _wrap_center(_build_confirm())
@@ -37,6 +69,9 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	# Permanent at the surface hub; hazards keep it out of the mine.
 	_corner_button.visible = GameState.depth == 0 and not _panel.visible and not _confirm.visible
+	var callout_on := _corner_button.visible and Nudges.a2hs_callout_active()
+	_callout.visible = callout_on
+	_callout_dismiss.visible = callout_on
 
 
 func _wrap_center(panel: Control) -> Control:
@@ -66,6 +101,20 @@ func _build_panel() -> Control:
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(blurb)
+
+	# The A2HS how-to (spec §9): iOS has no install-prompt API, so the nudge
+	# explains the manual two steps. Installed saves are exempt from the
+	# 7-day eviction cap (spec §13) — the strongest durability lever.
+	var howto := Label.new()
+	howto.text = (
+		"safest: add to Home Screen — in Safari tap Share,"
+		+ " then 'Add to Home Screen'. The installed app keeps its own save."
+	)
+	howto.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	howto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	howto.add_theme_font_size_override("font_size", 12)
+	howto.modulate = Color(1.0, 0.9, 0.55)
+	vbox.add_child(howto)
 
 	_status = Label.new()
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -144,6 +193,19 @@ func _on_import_confirmed() -> void:
 	_confirm.visible = false
 	_panel.visible = true
 	SaveManager.request_import()
+
+
+func _on_callout_input(event: InputEvent) -> void:
+	# Mouse arrives as a touch too (emulate_touch_from_mouse) — one path.
+	if event is InputEventScreenTouch and event.pressed:
+		_open()
+
+
+func _on_callout_dismissed() -> void:
+	# The dismissal persists (spec §9): 0 -> 1 (sleeps until a later run
+	# lost re-shows it once), 1 -> 2 (retired for good).
+	Nudges.dismiss_a2hs()
+	SaveManager.save_now()
 
 
 func _on_import_failed(reason: String) -> void:

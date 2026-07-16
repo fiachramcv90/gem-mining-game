@@ -28,7 +28,7 @@ func _ready() -> void:
 	mine.warm_start()
 
 
-func _on_run_lost(_reason: String) -> void:
+func _on_run_lost(_reason: String, _cargo_lost: int) -> void:
 	# Free respawn at the surface, topped up (GameState already reset the
 	# pressures and forfeited cargo).
 	player.respawn()

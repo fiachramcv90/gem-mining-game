@@ -22,6 +22,8 @@ general/default_playback_type.web=2
 GameState="*res://scripts/autoload/GameState.gd"
 Wallet="*res://scripts/autoload/Wallet.gd"
 Upgrades="*res://scripts/autoload/Upgrades.gd"
+MinersLog="*res://scripts/autoload/MinersLog.gd"
+Nudges="*res://scripts/autoload/Nudges.gd"
 SaveManager="*res://scripts/autoload/SaveManager.gd"
 
 [display]

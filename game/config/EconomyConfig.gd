@@ -56,8 +56,14 @@ extends Resource
 # --- onboarding (0013) -------------------------------------------------------
 ## Fuel gauge pulses when remaining fuel < this x estimated ascent cost.
 @export var roundtrip_pulse_threshold := 1.3
-## Ghost line self-dismiss backstop (seam — onboarding is a later session).
+## Ghost line self-dismiss backstop, seconds (spec §9).
 @export var ghost_line_backstop_secs := 10.0
+
+# --- distribution (0010 / spec §15) -------------------------------------------
+## The one quiet support surface: the itch.io page URL. A placeholder knob
+## until the page exists — while empty, the ♥ corner link reads "coming
+## soon" instead of opening anything. Never mid-run, never a modal.
+@export var support_url := ""
 
 
 func price_of(prices: PackedInt32Array, level_index: int) -> int:

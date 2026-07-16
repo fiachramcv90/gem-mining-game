@@ -4,7 +4,34 @@ The real Godot 4.3+ project, built to
 [`wayfinder/assets/0014-final-spec.md`](../wayfinder/assets/0014-final-spec.md)
 (the binding spec) using the terms of [`CONTEXT.md`](../CONTEXT.md).
 
-## Vertical slice status (session 4)
+## Vertical slice status (session 5)
+
+NEW in session 5 — the Miner's Log + onboarding (specs §8/§9), and the hub
+census is complete: the 8 lifetime stats as plain int counters incremented
+at the moment of the event, and the 14 milestones (Depth 5 / Wealth 4 /
+Survival 5), every one pinned to an event the game already signalled —
+honorific-only, celebrated with a one-line terse banner mid-run (never a
+modal) and honoured fully in the single Log screen behind the one new hub
+button (unearned = "???"); stat-derivable badges self-heal at load; NO
+daily hooks (rejected on the record). The save envelope stepped to
+`save_version` 2 through the migrate chain — the `stats` / `milestones` /
+`nudges` keys are live; v1 saves load clean and start counting from zero.
+Onboarding per §9, all four elements: the controls ghost line ("push to
+fly · hold into rock to dig", first descent only, derived from an empty
+dug delta — no flag; first dig or the `ghost_line_backstop_secs` backstop
+dismisses it); the round-trip fuel pulse (already live, threshold knob
+`roundtrip_pulse_threshold`) + the permanent death-reason line on the
+run-lost screen; the A2HS nudge as a temporary callout on the permanent 💾
+corner (from first sell or first run lost, `nudges.a2hs_dismissed` 0–2,
+one re-show after a later run lost, suppressed when standalone; the 💾
+panel now carries the install how-to); and the tap-to-start screen with
+the silent-switch caption (`nudges.audio_hint_shown` — the game-starting
+tap dismisses it and is the Web Audio unlock gesture's home). The hub is
+finally the full §9 census: 4 core actions + MINER'S LOG + the ♥ Support
+corner (§15 — `support_url` knob, "coming soon" while empty) + the 💾
+save-safety corner. Nothing else claims hub space.
+
+## Vertical slice status (through session 4)
 
 **Running:** seeded deterministic worldgen (5 bands, hardness(depth),
 veins + halos, sparse caves) streamed in 32×32 chunks inside the bounded
@@ -37,21 +64,27 @@ ascent fuel stepped down 1.0 → 0.7 (feedback #5, owner decision).
 
 **Stubbed seams (later sessions):** Hoist ascent payoff polish, best-effort
 mid-run save state (`run` stays `null` — every load starts at the surface),
-`stats`/`milestones` save fields + Miner's Log (0012), onboarding nudges
-(0013), art/audio (§7 — darkness/glint/glow shader is in; tiles stay
-grey-box).
+the itch.io page itself (`support_url` stays the empty placeholder knob),
+art/audio (§7 — darkness/glint/glow shader is in; tiles, digger sprite,
+hub layout/typography and all SFX/music stay grey-box; feedback #3's
+physical-garage hub idea is judged an art-session item — see FEEDBACK.md).
 
 ## Layout
 
 - `config/` — `EconomyConfig` / `WorldgenConfig` / `HazardConfig` resources:
   every Appendix A knob as a named `@export` default. Re-balancing is a
   slider drag.
-- `scripts/autoload/` — `GameState`, `Wallet`, `Upgrades`, `SaveManager`
-  (the §13 envelope, the SaveBlob seam, snapshot triggers, and the browser
-  hooks — `visibilitychange` flush, `storage.persist()`, download/file-input
+- `scripts/autoload/` — `GameState`, `Wallet`, `Upgrades`, `MinersLog`
+  (the §8 stats + milestones, event-pinned, self-healing), `Nudges` (the
+  §9 nudge state — the only two persisted onboarding fields), `SaveManager`
+  (the §13 envelope, the SaveBlob seam, the migrate chain — now with a real
+  v1→v2 step — snapshot triggers, and the browser hooks —
+  `visibilitychange` flush, `storage.persist()`, download/file-input
   hatch).
-- `scripts/ui/` — `UpgradeShop` (the §4 ratchet UI) and `SaveCorner`
-  (the permanent 💾 save-safety corner).
+- `scripts/ui/` — `UpgradeShop` (the §4 ratchet UI), `MinersLogScreen`
+  (the single §8 Log screen), `SaveCorner` (the permanent 💾 save-safety
+  corner + the A2HS callout nudge), `SupportCorner` (the quiet ♥ §15
+  link), and `TitleScreen` (tap-to-start + the silent-switch caption).
 - `scripts/Worldgen.gd` — pure function of `(world_seed, chunk coords)`;
   never runtime `randf()` (gas + cave-in placement included: per-tile
   hashes with distinct salts; lava: its own seeded noise channel).
