@@ -23,7 +23,7 @@ var _paused_here := false
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_corner_button = Button.new()
@@ -76,7 +76,8 @@ func _process(_delta: float) -> void:
 
 func _wrap_center(panel: Control) -> Control:
 	var wrap := CenterContainer.new()
-	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Fill the viewport so the panel truly centres (see HUD._center_wrap).
+	wrap.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.visible = false
 	wrap.add_child(panel)

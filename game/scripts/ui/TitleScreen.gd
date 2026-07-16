@@ -13,22 +13,27 @@ var _support: Button
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Fill the viewport: ..._and_offsets_preset resets the offsets to the
+	# preset, so the rect actually spans the parent. Plain set_anchors_preset
+	# keeps the (0x0) current rect — which collapses the background and pins
+	# the centred content into the top-left corner.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var bg := ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.07, 0.06, 0.09)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	# Full-rect + centre alignment centres the stack without depending on the
+	# parent size being known at this instant (the CENTER preset did, and lost).
 	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_CENTER)
-	vbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	vbox.grow_vertical = Control.GROW_DIRECTION_BOTH
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 18)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(vbox)
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var title := Label.new()
 	title.text = "GEM MINER"

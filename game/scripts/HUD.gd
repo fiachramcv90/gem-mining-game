@@ -175,8 +175,10 @@ func _bar(pos: Vector2, label: String, frac: float, color: Color, font: Font) ->
 func _center_wrap(panel: Control) -> Control:
 	## True centring at any viewport size: a full-rect CenterContainer that
 	## ignores mouse itself (the stick keeps working around the panel).
+	## ..._and_offsets_preset actually fills the rect — plain set_anchors_preset
+	## keeps the 0x0 current rect and the panel collapses into the corner.
 	var wrap := CenterContainer.new()
-	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.visible = false
 	wrap.add_child(panel)
@@ -355,9 +357,10 @@ func _dismiss_lost() -> void:
 
 func _build_banner() -> Label:
 	var banner := Label.new()
-	# Full-width strip via offsets (position would bake in the zero size the
-	# label still has during _ready).
-	banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	# Full-width strip: ..._and_offsets_preset spans the width (plain
+	# set_anchors_preset keeps a 0-width rect, left-jamming the centred text);
+	# the offset_top/bottom then place the band vertically.
+	banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	banner.offset_top = 150.0
 	banner.offset_bottom = 190.0
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -397,7 +400,7 @@ func _on_banner_done() -> void:
 func _build_ghost_line() -> Label:
 	var ghost := Label.new()
 	ghost.text = "push to fly · hold into rock to dig"
-	ghost.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	ghost.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	ghost.offset_top = 300.0
 	ghost.offset_bottom = 340.0
 	ghost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
