@@ -13,8 +13,17 @@ var _support: Button
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# A top-level Control added to a CanvasLayer at runtime is NOT auto-sized
+	# to the viewport until the first resize fires — and the title is the one
+	# screen shown AT BOOT, inside that zero-size window. A zero-size root
+	# renders its centred content jammed into the top-left corner (cut off)
+	# and, worse, gives the tap-to-start gesture a zero-area target, so the
+	# game can't be started at all. Drive our own rect from the viewport and
+	# keep it synced, rather than trusting anchors to deliver a size.
+	_fit_to_viewport()
+	get_viewport().size_changed.connect(_fit_to_viewport)
 
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -22,13 +31,18 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
+	# Centre the content with a full-rect CenterContainer (the same robust
+	# pattern HUD._center_wrap uses for every other panel) instead of hand
+	# anchoring, so it stays centred at any viewport size.
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+
 	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_CENTER)
-	vbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	vbox.grow_vertical = Control.GROW_DIRECTION_BOTH
 	vbox.add_theme_constant_override("separation", 18)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(vbox)
+	center.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "GEM MINER"
@@ -65,6 +79,14 @@ func _ready() -> void:
 	add_child(_support)
 
 	get_tree().paused = true
+
+
+func _fit_to_viewport() -> void:
+	# TOP_LEFT-anchored (the default) so this explicit rect is authoritative;
+	# the full-rect children then fill the real viewport size.
+	var rect := get_viewport().get_visible_rect()
+	position = Vector2.ZERO
+	size = rect.size
 
 
 func _process(_delta: float) -> void:
