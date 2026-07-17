@@ -1,12 +1,11 @@
 name: Deploy game + prototypes to Pages
 
 # Builds the single-threaded Godot web exports (spec §11) and publishes them
-# to GitHub Pages. THREE builds share one Pages site:
+# to GitHub Pages. TWO builds share one Pages site:
 #   * the REAL GAME (vertical slice)   -> served at  /            (game/)
 #   * the 0004 dig-feel prototype      -> served at  /prototype/  (prototype/)
-#   * the 0011 iOS smoke test          -> served at  /smoke/      (smoke-test/)
-# The prototype and smoke test are throwaways kept until spec §16's profiling
-# no longer needs them.
+# The 0011 smoke test (was /smoke/) is DELETED (spec §14): the game's own
+# §16 debug overlay + head_include capture now measure everything it did.
 #
 # Builds/verify on any listed push; only DEPLOYS from the default branch,
 # because the github-pages environment only permits deployments from main.
@@ -21,6 +20,7 @@ on:
       - claude/gem-miner-build-slice-04-p5wbwd
       - claude/gem-miner-build-slice-05-yh3jmn
       - claude/gem-miner-art-juice-pass-v9l345
+      - claude/gem-miner-instrumentation-hardening-x4b9v4
   workflow_dispatch:
 
 permissions:
@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   # Fast first line of defence: GDScript lint + format check (gdtoolkit) on
-  # the real game only — prototype/ and smoke-test/ are frozen throwaways.
+  # the real game only — prototype/ is a frozen throwaway.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -75,7 +75,7 @@ jobs:
         run: |
           cd game
           timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log || true
-          # Stricter than the smoke gate: any engine ERROR line fails too
+          # Strict: any engine ERROR line fails too
           # (a collision-less TileSet once sailed through as "no script error").
           if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function|^ERROR:" run.log; then
             echo "::error::game scene logged an error (see above) — not deploying"
@@ -91,34 +91,14 @@ jobs:
           godot --headless --export-release "Web" build/index.html
           ls -la build
 
-      - name: Export iOS smoke test (0011, single-threaded + PWA)
-        run: |
-          cd smoke-test
-          mkdir -p build
-          godot --headless --import || true
-          godot --headless --export-release "Web" build/index.html
-          ls -la build
-
-      - name: Headless smoke-run (gate on script errors)
-        run: |
-          cd smoke-test
-          timeout 25 godot --headless --quit-after 120 2>&1 | tee run.log || true
-          if grep -qiE "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Nonexistent function" run.log; then
-            echo "::error::smoke-test scene logged a script error (see above) — not deploying"
-            exit 1
-          fi
-          echo "smoke-test scene loaded clean (no script errors)"
-
-      - name: Assemble Pages site (game at /, prototype at /prototype/, smoke at /smoke/)
+      - name: Assemble Pages site (game at /, prototype at /prototype/)
         run: |
           rm -rf site
-          mkdir -p site/prototype site/smoke
+          mkdir -p site/prototype
           cp -r game/build/. site/
           cp -r prototype/build/. site/prototype/
-          cp -r smoke-test/build/. site/smoke/
           echo "--- site/ ---"; ls -la site
           echo "--- site/prototype/ ---"; ls -la site/prototype
-          echo "--- site/smoke/ ---"; ls -la site/smoke
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

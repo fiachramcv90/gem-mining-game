@@ -16,6 +16,14 @@ extends CharacterBody2D
 ## Intent magnitude below which we neither steer nor drill.
 @export var intent_threshold := 0.15
 
+## The Hoist's TIME half (spec §4: "ascent fuel & time ×0.5" — the fuel half
+## is Upgrades.ascent_factor). A thrust-and-speed assist applied only while
+## thrusting upward below the surface WITH the Hoist owned: 1.9 lifts the
+## floaty climb's terminal speed (thrust−gravity)/damp from ~119 to ~243
+## px/s — ascent time ~×0.5 — while non-owners keep the 0004 feel constants
+## bit-for-bit (this multiplies by 1.0 for them).
+@export var hoist_ascent_boost := 1.9
+
 var mine: Mine
 var stick: VirtualStick
 var spawn_position := Vector2.ZERO
@@ -55,6 +63,18 @@ func respawn() -> void:
 		stick.reset()
 
 
+func restore_at(pos: Vector2) -> void:
+	## Mid-run restore (spec §13 `run`): place the digger where the snapshot
+	## left off, stationary — velocity zeroed and fall tracking cleared, so
+	## a restore can never land as a mid-fall hit.
+	global_position = pos
+	velocity = Vector2.ZERO
+	_prev_y_tiles = pos.y / tile_px()
+	_falling = false
+	_reset_drill()
+	GameState.set_depth(int(floor(maxf(0.0, _prev_y_tiles))))
+
+
 func tile_px() -> float:
 	return float(GameState.world.tile_px)
 
@@ -70,11 +90,15 @@ func _physics_process(delta: float) -> void:
 
 	# Floaty (spec §2): thrust in the stick direction, light gravity,
 	# slight glide damping — descent and the self-powered climb home are
-	# one continuous flying verb.
-	velocity += intent * thrust * delta
+	# one continuous flying verb. The Hoist's ascent assist rides the same
+	# verb: more thrust and headroom on the climb, no new movement mode.
+	var boost := 1.0
+	if Upgrades.hoist and intent.y < -intent_threshold and global_position.y > 0.0:
+		boost = hoist_ascent_boost
+	velocity += intent * thrust * boost * delta
 	velocity.y += gravity_accel * delta
 	velocity -= velocity * glide_damp * delta
-	velocity = velocity.limit_length(max_speed)
+	velocity = velocity.limit_length(max_speed * boost)
 	move_and_slide()
 
 	_track_fall(intent)

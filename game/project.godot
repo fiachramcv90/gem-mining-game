@@ -28,6 +28,7 @@ Settings="*res://scripts/autoload/Settings.gd"
 SaveManager="*res://scripts/autoload/SaveManager.gd"
 Sfx="*res://scripts/autoload/Sfx.gd"
 Juice="*res://scripts/autoload/Juice.gd"
+DebugOverlay="*res://scripts/ui/DebugOverlay.gd"
 
 [display]
 
