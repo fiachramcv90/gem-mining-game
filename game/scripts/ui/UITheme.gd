@@ -6,6 +6,11 @@ extends RefCounted
 ## Applied to each code-built panel root; still default-font (a pixel font
 ## is a later asset decision), so typography here is size/colour/spacing.
 
+## Price-button states (the shop's at-a-glance affordability read, spec §4
+## presentation): AFFORD pops gold, POOR shows the price dimmed, DONE reads
+## MAX/OWNED in the good green — three visibly distinct states.
+enum Price { AFFORD, POOR, DONE }
+
 
 static func build() -> Theme:
 	var theme := Theme.new()
@@ -47,6 +52,45 @@ static func style_title(label: Label, color: Color = Palette.UI_GOLD) -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 20)
 	label.add_theme_color_override("font_color", color)
+
+
+static func row_box() -> StyleBoxFlat:
+	## A subtle inset card for list rows (the shop's track cards): darker
+	## than the panel, thin border, tighter margins than the panel box.
+	var box := StyleBoxFlat.new()
+	box.bg_color = Palette.UI_PANEL_BG.darkened(0.25)
+	box.border_color = Palette.UI_PANEL_BORDER
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(6)
+	box.content_margin_left = 10.0
+	box.content_margin_right = 10.0
+	box.content_margin_top = 8.0
+	box.content_margin_bottom = 8.0
+	return box
+
+
+static func style_price_button(button: Button, state: Price) -> void:
+	## One shared voice for every buy button: affordable gold-rimmed and
+	## live, unaffordable dim but still priced, maxed/owned quiet green.
+	match state:
+		Price.AFFORD:
+			button.disabled = false
+			button.add_theme_color_override("font_color", Palette.UI_GOLD)
+			button.add_theme_stylebox_override("normal", _button_box_rimmed(Palette.UI_GOLD))
+		Price.POOR:
+			button.disabled = true
+			button.add_theme_color_override("font_disabled_color", Palette.UI_TEXT_DIM)
+			button.remove_theme_stylebox_override("normal")
+		Price.DONE:
+			button.disabled = true
+			button.add_theme_color_override("font_disabled_color", Palette.UI_GOOD)
+			button.remove_theme_stylebox_override("normal")
+
+
+static func _button_box_rimmed(rim: Color) -> StyleBoxFlat:
+	var box := _button_box(Palette.UI_BUTTON_BG)
+	box.border_color = Color(rim.r, rim.g, rim.b, 0.75)
+	return box
 
 
 static func _button_box(bg: Color) -> StyleBoxFlat:

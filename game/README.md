@@ -4,6 +4,52 @@ The real Godot 4.3+ project, built to
 [`wayfinder/assets/0014-final-spec.md`](../wayfinder/assets/0014-final-spec.md)
 (the binding spec) using the terms of [`CONTEXT.md`](../CONTEXT.md).
 
+## Vertical slice status (session 7)
+
+NEW in session 7 — instrumentation & hardening (spec §16's prerequisite,
+§13's `run` field, the shop's storefront pass, the Hoist payoff):
+
+- **Web memory instrumentation (the §16 prerequisite, fixed for real):**
+  the Safari-safe heap probe is live. 0011's `WebAssembly.Memory`
+  monkey-patch could never fire — with `thread_support=false` the
+  Emscripten module *defines* its own memory and exports it
+  (`instance.exports.memory`); JS never constructs it. The new
+  `html/head_include` shim (readable source: `web/head_include.html`)
+  wraps `WebAssembly.instantiate(Streaming)` and stashes the exported
+  memory; `DebugOverlay` (autoload) reads `buffer.byteLength` via
+  JavaScriptBridge. For the same reason the old **512 MB clamp was dead
+  config and is removed** — the wasm maximum is baked into the export
+  templates at build time; no head shim can lower it. The overlay (FPS,
+  WASM heap + peak, static mem, node/object counts, resident chunks +
+  gen queue + pickups + lava shapes + prize tiles, depth, resize count,
+  context-lost flag) hides behind **5 quick taps in the top-left corner
+  of the tap-to-start screen** — never a hub census item, session-only,
+  zero cost while hidden. The profiling protocol is in FEEDBACK.md;
+  `smoke-test/` is deleted (spec §14 — the overlay supersedes it).
+- **Mid-run save (spec §13, best-effort):** the `run` field is live —
+  position/fuel/hull/cargo captured on the existing snapshot cadence
+  whenever the digger is below the surface (the `visibilitychange` flush
+  is the one that matters), `save_version` 3→4 through the migrate chain
+  (key guaranteed, only ever added). Restore only when the field is
+  complete and sane (`SaveManager._sane_run`: inside the shaft, above the
+  designed bottom, pressures within the loaded caps, cargo legal and
+  fitting) — anything less starts at the surface exactly as before;
+  restores are stationary so they can never land as a mid-fall hit.
+- **The shop is the ratchet's storefront** (owner feedback: it read raw):
+  each track a card — name, its job in plain words, a code-drawn level
+  pip strip, a current → next effect line, and a price button with three
+  glance-distinct states (gold-rimmed affordable / dim priced
+  can't-afford / green MAX–OWNED) via the new
+  `UITheme.style_price_button`/`row_box` extensions. The bought row pops
+  (same tween idiom as the banked-gold beat); Juice's screen-wide upgrade
+  flash unchanged. **Presentation only — 0006's prices, effects, and the
+  Hoist reveal rule are untouched.**
+- **The Hoist pays its time half** (spec §4 "ascent fuel & time ×0.5"; the
+  fuel half was already `ascent_factor`): an ascent thrust/speed assist
+  gated on `Upgrades.hoist` — `Player.hoist_ascent_boost` (1.9) lifts the
+  floaty climb's terminal speed ≈2× only while thrusting up below the
+  surface. Non-owners run the 0004 constants bit-for-bit.
+
 ## Vertical slice status (session 6)
 
 NEW in session 6 — the §7 art & juice pass (make everything, spend
@@ -121,16 +167,16 @@ the shaft is a pit between two cliffs that can never be flown over
 (feedback #2, retuned after on-device play found a finite rim hoppable);
 ascent fuel stepped down 1.0 → 0.7 (feedback #5, owner decision).
 
-**Stubbed seams (later sessions):** Hoist ascent payoff polish, best-effort
-mid-run save state (`run` stays `null` — every load starts at the surface),
-the itch.io page itself (`support_url` stays the empty placeholder knob),
-real audio assets (§7/§11 — the playback architecture, crossfade and
-unlock gesture are live in `Sfx.gd`, but every sample is a code-synthesized
-placeholder; the hand-made jsfxr/foley/Bosca-Ceoil palette replaces them by
-name), a hand-drawn tile atlas (the procedural `TileArt.gd` tiles are
-first-draft, swappable wholesale), a real pixel font (all UI is themed
-default-font), and the §16 on-device memory-profiling task (its
-chunk-streaming prerequisite is met).
+**Stubbed seams (later sessions):** the itch.io page itself (`support_url`
+stays the empty placeholder knob), real audio assets (§7/§11 — the playback
+architecture, crossfade and unlock gesture are live in `Sfx.gd`, but every
+sample is a code-synthesized placeholder; the hand-made
+jsfxr/foley/Bosca-Ceoil palette replaces them by name), a hand-drawn tile
+atlas (the procedural `TileArt.gd` tiles are first-draft, swappable
+wholesale), a real pixel font (all UI is themed default-font), and the §16
+on-device READING itself — the instrumentation is live (session 7), the
+numbers still have to be read off a real iPhone (protocol in FEEDBACK.md)
+before the §12 tunables can be judged.
 
 ## Layout
 
@@ -141,12 +187,15 @@ chunk-streaming prerequisite is met).
   (the §8 stats + milestones, event-pinned, self-healing), `Nudges` (the
   §9 nudge state), `Settings` (the §7 reduce-motion toggle,
   prefers-reduced-motion-aware), `SaveManager` (the §13 envelope, the
-  SaveBlob seam, the migrate chain — v1→v2→v3 — snapshot triggers, and the
+  SaveBlob seam, the migrate chain — v1→v2→v3→v4 — snapshot triggers, and the
   browser hooks), `Juice` (the §7 shake/flash/pooled-particle/vibrate
   beats — also the §8 milestone celebration), `Sfx` (the §11-safe sound
   layer: sample pool, engine hum, depth-crossfaded ambient; placeholder
   synth samples).
-- `scripts/ui/` — `UpgradeShop` (the §4 ratchet UI), `MinersLogScreen`
+- `scripts/ui/` — `UpgradeShop` (the §4 ratchet storefront: track cards,
+  pip strips, three-state price buttons — presentation only, 0006 closed),
+  `DebugOverlay` (the §16 readout autoload behind the hidden title-screen
+  corner-tap toggle), `MinersLogScreen`
   (the single §8 Log screen), `SaveCorner` (the permanent 💾 save-safety
   corner + the A2HS callout nudge), `SupportCorner` (the quiet ♥ §15
   link), `TitleScreen` (tap-to-start + the silent-switch caption + the

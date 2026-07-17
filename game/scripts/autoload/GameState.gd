@@ -70,6 +70,20 @@ func top_up() -> void:
 	hull_changed.emit(hull, float(Upgrades.hull_capacity()))
 
 
+func restore_run(fuel_in: float, hull_in: float, cargo_in: Array[int]) -> void:
+	## Mid-run restore (spec §13 `run`, best-effort): SaveManager has already
+	## validated the values against the loaded upgrades' caps; this just
+	## makes them live and tells the HUD.
+	fuel = clampf(fuel_in, 0.0, float(Upgrades.fuel_capacity()))
+	hull = clampf(hull_in, 0.0, float(Upgrades.hull_capacity()))
+	cargo.clear()
+	for tier in cargo_in:
+		cargo.append(tier)
+	fuel_changed.emit(fuel, float(Upgrades.fuel_capacity()))
+	hull_changed.emit(hull, float(Upgrades.hull_capacity()))
+	cargo_changed.emit(cargo.size(), Upgrades.cargo_slots())
+
+
 func set_depth(d: int) -> void:
 	if d == depth:
 		return

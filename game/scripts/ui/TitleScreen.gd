@@ -8,9 +8,19 @@ extends Control
 ## stays paused underneath, so nothing gates play beyond the one tap the
 ## platform needs anyway.
 
+## The §16 debug-overlay toggle: N quick taps in the top-left corner square
+## of the title screen (nowhere near the start-tap habit, never a census
+## item, invisible to anyone who doesn't know it). Corner taps never start
+## the game; constants not knobs — debug plumbing, like Garage.DOOR_RECT.
+const DEBUG_CORNER_PX := 56.0
+const DEBUG_TOGGLE_TAPS := 5
+const DEBUG_TAP_WINDOW_SECS := 1.5
+
 var _caption: Label
 var _support: Button
 var _motion: Button
+var _debug_taps := 0
+var _debug_last_tap := 0.0
 
 
 func _ready() -> void:
@@ -129,7 +139,26 @@ func _process(_delta: float) -> void:
 func _gui_input(event: InputEvent) -> void:
 	# Mouse arrives as a touch too (emulate_touch_from_mouse) — one path.
 	if event is InputEventScreenTouch and event.pressed:
+		if _handle_debug_tap(event.position):
+			return
 		_start()
+
+
+func _handle_debug_tap(pos: Vector2) -> bool:
+	## Taps inside the hidden corner square count toward the overlay toggle
+	## instead of starting the game (a dead-zone tap is harmless; a player
+	## taps the middle of the screen).
+	if pos.x > DEBUG_CORNER_PX or pos.y > DEBUG_CORNER_PX:
+		return false
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _debug_last_tap > DEBUG_TAP_WINDOW_SECS:
+		_debug_taps = 0
+	_debug_last_tap = now
+	_debug_taps += 1
+	if _debug_taps >= DEBUG_TOGGLE_TAPS:
+		_debug_taps = 0
+		DebugOverlay.toggle()
+	return true
 
 
 func _start() -> void:

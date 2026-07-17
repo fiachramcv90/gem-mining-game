@@ -312,6 +312,21 @@ func lava_glow_points(from: Vector2, reach: float, cap: int) -> Array[Vector2]:
 	return out
 
 
+func debug_counts() -> Dictionary:
+	## Live §12 resident-window counters for the §16 debug overlay — read
+	## only, the window itself is never touched by instrumentation.
+	var lava_shapes := 0
+	for cc: Vector2i in _chunk_lava_shapes.keys():
+		lava_shapes += _chunk_lava_shapes[cc].size()
+	return {
+		"chunks": _chunk_codes.size(),
+		"queued": _gen_queue.size(),
+		"pickups": pickups_root.get_child_count(),
+		"lava_shapes": lava_shapes,
+		"prize_tiles": _prize_tiles.size(),
+	}
+
+
 func _spawn_pickup(cc: Vector2i, tile: Vector2i, tier: int) -> void:
 	# Capped, not pooled yet (spec §12): over the cap the gem simply stays
 	# a delta and reappears on a later chunk load.

@@ -1,0 +1,79 @@
+<!--
+  Readable source for the export's `html/head_include` (spec §16's
+  instrumentation prerequisite, session 7). The single-line minified copy of
+  the <script> below is pasted into export_presets.cfg →
+  [preset.0.options] html/head_include, because that .cfg field is what the
+  CI export actually reads. Keep the two in sync; this file is the
+  human-legible original + the reasoning.
+
+  WHAT THIS DOES — capture the engine's WASM memory for the debug overlay.
+  The Safari-safe heap signal (0011, spec §11) is the Emscripten WASM
+  buffer's byteLength (`performance.memory` is Chrome-only and useless on
+  the target). This shim stashes the engine's WebAssembly.Memory object on
+  window.__godotWasmMemory so DebugOverlay.gd can read
+  `__godotWasmMemory.buffer.byteLength` live via JavaScriptBridge.
+  `memory.buffer` always returns the CURRENT buffer, so the readout stays
+  correct across memory growth.
+
+  WHY THE 0011 SHIM NEVER FIRED, AND WHERE THE 512 MB CLAMP WENT.
+  The smoke-test shim monkey-patched `new WebAssembly.Memory(desc)` to
+  capture the memory and clamp desc.maximum to 512 MB. But with
+  `variant/thread_support=false` (our one load-bearing export toggle, §11),
+  Godot 4.3's Emscripten build does NOT import its memory from JS — the
+  module DEFINES its own memory internally and exports it as
+  `instance.exports.memory` (JS-constructed memory is a threads/
+  IMPORTED_MEMORY feature). So the Memory constructor never runs in page
+  JS: the capture could never fire, and the clamp could never apply — the
+  maximum is baked into the .wasm at template build time (Emscripten
+  MAXIMUM_MEMORY; 4.3 stock templates grow dynamically). A JS shim cannot
+  lower it, ever. The clamp was therefore dead config and is REMOVED, not
+  carried (spec: no cargo-cult config). The real ceiling on iOS is Safari's
+  own per-tab memory limit; §16's job is to measure how far below it the
+  game actually sits, which this capture finally makes possible.
+
+  The correct hook is the instantiation call itself: Emscripten boots via
+  WebAssembly.instantiateStreaming (falling back to instantiate), and the
+  resolved instance carries the exported memory. Wrapping those runs before
+  the engine (head_include is injected into <head>). The Memory-constructor
+  capture is kept as a belt-and-braces fallback in case a future template
+  switches to imported memory.
+
+  Also installs the webglcontextlost listener (0002 §4) so the overlay can
+  show a lost context — the other failure §16 profiling watches for.
+-->
+<script>
+(function () {
+  function stash(result) {
+    try {
+      var inst = result && result.instance ? result.instance : result;
+      if (inst && inst.exports && inst.exports.memory) {
+        window.__godotWasmMemory = inst.exports.memory;
+      }
+    } catch (e) { /* capture is best-effort */ }
+    return result;
+  }
+  var origStreaming = WebAssembly.instantiateStreaming;
+  if (origStreaming) {
+    WebAssembly.instantiateStreaming = function () {
+      return origStreaming.apply(WebAssembly, arguments).then(stash);
+    };
+  }
+  var origInstantiate = WebAssembly.instantiate;
+  WebAssembly.instantiate = function () {
+    return origInstantiate.apply(WebAssembly, arguments).then(stash);
+  };
+  var OrigMemory = WebAssembly.Memory;
+  function CapturedMemory(desc) {
+    var m = new OrigMemory(desc);
+    window.__godotWasmMemory = m;
+    return m;
+  }
+  CapturedMemory.prototype = OrigMemory.prototype;
+  window.WebAssembly.Memory = CapturedMemory;
+
+  window.__ctxLost = false;
+  window.addEventListener("webglcontextlost", function () {
+    window.__ctxLost = true;
+  }, true);
+})();
+</script>

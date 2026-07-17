@@ -7,6 +7,109 @@ log the spec's §17 playtesting plan feeds — NOT a decision document: where
 an item touches a closed decision, the decision stays closed and the entry
 says so.
 
+## 2026-07-17 — session-7 build (instrumentation & hardening)
+
+### OWNER VERDICT applied: the UPGRADES menu read raw — reworked
+
+The shop is now the ratchet's storefront (presentation only — every price,
+effect, and the Hoist reveal rule still comes from Upgrades/EconomyConfig;
+0006 stays closed): each track is a card with its name, its job in plain
+words ("FUEL — how deep a round trip reaches"), a level pip strip
+(filled/empty per level), a current → next effect line, and a price button
+with three at-arm's-length states (gold-rimmed affordable / dim priced
+can't-afford / green MAX-OWNED). The bought row pops through the existing
+tween idiom; Juice's screen-wide upgrade beat is unchanged. All through
+UITheme + Palette (row_box / style_price_button extensions), default font.
+**Judge on-device:** can you tell what to buy next and what you can afford
+without reading every row? Do the pips and disabled states survive the
+440-wide portrait viewport (cards are 372 wide + panel margins)?
+
+### The §16 profiling protocol — READ THESE OFF A REAL IPHONE
+
+The prerequisite is met: the WASM heap is now measurable on Safari. The
+0011 shim's capture never fired because with thread_support=false the
+Emscripten module DEFINES its own memory (exported as
+`instance.exports.memory`, never JS-constructed) — the new head_include
+shim (`game/web/head_include.html`) wraps
+`WebAssembly.instantiate(Streaming)` and stashes the exported memory for
+`DebugOverlay` to read via `buffer.byteLength`. For the same reason the
+512 MB "clamp" could never apply (the maximum is baked into the wasm at
+template build time) — it was dead config and is REMOVED, not carried.
+There is no browser-side max-memory lever in 4.3 short of rebuilding the
+templates; the real ceiling is Safari's per-tab limit, and §16's job is
+to measure how far below it we sit.
+
+**The overlay toggle (keep it secret): 5 quick taps in the top-left
+corner square of the tap-to-start screen.** Never a hub item; session-only;
+5 more taps at next boot hides it. Corner taps don't start the game.
+
+Checklist — note each line as a feedback entry next session:
+
+1. **At the surface, fresh boot:** WASM heap MB (the baseline), static MB,
+   nodes, chunks (expect the ~5×5 window ≈ 25).
+2. **Depth ~300 (Granite):** WASM heap + peak, chunks (must still be ~25 —
+   the §12 window is depth-constant), pickups, FPS while digging.
+3. **Depth ~600 (Bedrock):** same numbers + lava shapes; FPS during a
+   lava-glow + shake moment.
+4. **After a long dig session (~20+ min, several runs):** peak WASM heap vs
+   the baseline — a steadily climbing peak with flat chunk counts is a leak
+   smell; flat peak confirms the bounded window holds in practice.
+5. **After backgrounding:** switch apps for a minute, return — heap number,
+   context-lost line (should stay absent), and does the mid-run restore
+   land sanely if Safari killed the tab?
+6. **Rotate the phone a few times:** resize count up, heap stable, no
+   context lost (the 0002 §4 canvas-resize hazard).
+
+The numbers land here as a session-8 feedback entry; only then do the §12
+tunables (chunk_size 32 / resident_margin 1 / shaft_width 96) get judged —
+instrumentation observes the window, it never changes it.
+
+### §17 playtesting plan (drafted now that a handable build exists)
+
+- **Who:** 3–5 people off the deployed URL
+  (fiachramcv90.github.io/gem-mining-game/) — at least one non-gamer, at
+  least one on an older iPhone; the owner plus one repeat tester replay
+  each later build (fresh eyes for onboarding, repeat eyes for pacing).
+- **How:** send the URL, say NOTHING about controls (the §9 arrangement
+  claims it teaches itself) — watch or ask after the first session.
+- **What they're watching for (the two 0013 assumptions + the standing
+  list):**
+  - Did the ghost line ever matter, or was the scheme grasped before it
+    faded (0004's "grasped near-instantly" generalising)?
+  - Did the round-trip pulse teach the fuel budget before the first
+    ran-dry death, without crying wolf (`roundtrip_pulse_threshold` 1.3)?
+  - First-session arc: how many runs before the first upgrade (~3 is the
+    0006 sim's answer), and did they come back for a second session (the
+    persistent-shaft hook)?
+  - Does the reworked shop read at arm's length (what to buy next)?
+  - Any run lost that felt UNFAIR (vs. greedy) — which hazard, what depth.
+- **When:** after this session's build deploys; before the real-audio/art
+  asset session locks in tone.
+
+### Mid-run save + Hoist payoff (hardening, judge on-device)
+
+- The §13 `run` field is live (save_version 4): position/fuel/hull/cargo
+  persist on the existing snapshot cadence (the visibilitychange flush is
+  the one that matters) and restore only when complete and sane — else
+  surface start exactly as before. Restores are stationary (never
+  mid-fall). **Watch:** does a restore ever land somewhere unfair (fresh
+  darkness, beside a lava pocket)? The validation is in
+  `SaveManager._sane_run`.
+- The Hoist now pays its TIME half (spec §4 ×0.5): an ascent thrust/speed
+  assist gated on ownership, `Player.hoist_ascent_boost` 1.9 (≈ halves the
+  floaty climb's terminal-speed time; non-owners keep 0004's constants
+  bit-for-bit). **Watch (needs a 5000-wallet save):** does the boosted
+  climb still feel floaty or does it read as a different vehicle? Tune the
+  knob, never thrust/gravity/damp.
+
+### Session-6 watch list — carried, still pending a phone
+
+No display in this build environment again, so nothing was re-judged
+blind. Standing: title centring, ghost line lifetime, roundtrip pulse 1.3,
+`cavein_telegraph_secs` 0.45, `lava_glow_radius` 6, fall knobs 4/3, garage
+doorway feel, shake/flash sizing, the reserve-saturation read, and the
+placeholder-audio wiring (beat timing + depth crossfade, not the sounds).
+
 ## 2026-07-16 — session-6 build (the §7 art & juice pass)
 
 ### Items #3, #4, #6 — APPLIED (garage hub, layout/typography, digger robot)

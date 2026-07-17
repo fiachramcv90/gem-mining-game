@@ -15,7 +15,7 @@ signal import_succeeded
 signal import_failed(reason: String)
 
 const SAVE_PATH := "user://save.dat"
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 const EXPORT_FILENAME := "gem-miner-save.dat"
 const IMPORT_INPUT_ID := "gem-miner-import"
 
@@ -57,6 +57,11 @@ const _IMPORT_INPUT_JS := """
 ## triggers listen to.
 var _loading := false
 var _deepest_since_save := 0
+
+## A validated mid-run position waiting for Main to place the player at
+## (spec §13 `run`): apply_envelope runs before the scene exists, so the
+## position hands over here; everything else in `run` is applied directly.
+var _pending_run_position: Variant = null
 
 # Kept as members so the browser-side callbacks are never garbage-collected.
 var _js_visibility_cb: JavaScriptObject
@@ -101,7 +106,7 @@ func build_envelope() -> Dictionary:
 			"light": Upgrades.levels["light"],
 			"hoist": Upgrades.hoist,
 		},
-		"run": null,  # best-effort mid-run state — still a stub (spec §13)
+		"run": _run_state(),  # best-effort mid-run state (spec §13, save_version 4)
 		"stats": MinersLog.stats.duplicate(),  # 0012 (spec §8)
 		"milestones": MinersLog.milestones.duplicate(),  # 0012 (spec §8)
 		"nudges":  # 0013 (spec §9)
@@ -117,15 +122,33 @@ func build_envelope() -> Dictionary:
 		{
 			"saved_at": int(Time.get_unix_time_from_system()),
 			"play_secs": 0,
-			"schema_note": "vertical slice 6",
+			"schema_note": "vertical slice 7",
 		},
 	}
 
 
+func _run_state() -> Variant:
+	## The `run` field (spec §13): position/fuel/hull/cargo, captured only
+	## when a run is actually underway — the digger exists and is below the
+	## surface line. At the surface (or with no scene up) the field is null
+	## and a load starts at the surface exactly as before.
+	var player: Node2D = get_tree().get_first_node_in_group("digger")
+	if not is_instance_valid(player) or player.global_position.y <= 0.0:
+		return null
+	return {
+		"pos_x": player.global_position.x,
+		"pos_y": player.global_position.y,
+		"fuel": GameState.fuel,
+		"hull": GameState.hull,
+		"cargo": GameState.cargo.duplicate(),
+	}
+
+
 func apply_envelope(env: Dictionary) -> void:
-	## Load defensively (spec §13): missing or mistyped key -> default. The
-	## envelope's "run" is null/stubbed, so every load starts at the surface,
-	## topped up.
+	## Load defensively (spec §13): missing or mistyped key -> default. A
+	## complete, sane "run" field resumes the run (best-effort); anything
+	## less — missing, partial, out of bounds — starts at the surface,
+	## topped up, exactly as before.
 	GameState.world_seed = _int_in(env, "world_seed", 0)
 	var world := _dict_in(env, "world")
 	GameState.dug.clear()
@@ -152,6 +175,75 @@ func apply_envelope(env: Dictionary) -> void:
 	GameState.cargo.clear()
 	GameState.top_up()
 	GameState.set_depth(0)
+	_pending_run_position = null
+	var run := _sane_run(env)
+	if not run.is_empty():
+		GameState.restore_run(run["fuel"], run["hull"], run["cargo"])
+		_pending_run_position = run["pos"]
+
+
+func _sane_run(env: Dictionary) -> Dictionary:
+	## Validate the envelope's `run` field (spec §13's rule: restore ONLY if
+	## complete and sane; missing/partial => surface). Runs AFTER upgrades
+	## are applied, so the caps checked here are the loaded ones. Returns
+	## a normalized dict, or {} for "start at the surface".
+	var run_v: Variant = env.get("run")
+	if not (run_v is Dictionary):
+		return {}
+	var run: Dictionary = run_v
+	var pos_x := _float_in(run, "pos_x")
+	var pos_y := _float_in(run, "pos_y")
+	var fuel := _float_in(run, "fuel")
+	var hull := _float_in(run, "hull")
+	var cargo: Variant = _sane_cargo(run.get("cargo"))
+	# Position must be inside the mine proper: below the surface line, above
+	# the designed bottom, within the shaft (outside it is solid bedrock —
+	# restoring there would wedge the digger in rock).
+	var px := float(GameState.world.tile_px)
+	var pos_ok := (
+		not is_nan(pos_x)
+		and not is_nan(pos_y)
+		and pos_y > 0.0
+		and pos_y < float(GameState.world.designed_bottom_depth) * px
+		and absf(pos_x) < GameState.world.shaft_width * 0.5 * px
+	)
+	# A live run has fuel and hull left, within the loaded caps.
+	var pressures_ok := (
+		not is_nan(fuel)
+		and fuel > 0.0
+		and fuel <= float(Upgrades.fuel_capacity())
+		and not is_nan(hull)
+		and hull > 0.0
+		and hull <= float(Upgrades.hull_capacity())
+	)
+	if not pos_ok or not pressures_ok or cargo == null:
+		return {}
+	return {"pos": Vector2(pos_x, pos_y), "fuel": fuel, "hull": hull, "cargo": cargo}
+
+
+func _sane_cargo(cargo_v: Variant) -> Variant:
+	## The `run` field's cargo list, validated: an Array of legal gem tiers
+	## that fits the loaded hold, or null for "not sane".
+	if not (cargo_v is Array):
+		return null
+	var out: Array[int] = []
+	for tier: Variant in cargo_v:
+		if not (tier is int):
+			return null
+		if (tier < 1 or tier > 5) and tier != Worldgen.PRIZE_TIER:
+			return null
+		out.append(tier)
+	if out.size() > Upgrades.cargo_slots():
+		return null
+	return out
+
+
+func consume_run_position() -> Variant:
+	## Main's boot hook: the validated mid-run position, exactly once, or
+	## null when this load starts at the surface.
+	var pos: Variant = _pending_run_position
+	_pending_run_position = null
+	return pos
 
 
 # --- the SaveBlob seam ----------------------------------------------------------
@@ -190,6 +282,8 @@ func _migrate(env: Dictionary) -> Dictionary:
 				env = _migrate_1_to_2(env)
 			2:
 				env = _migrate_2_to_3(env)
+			3:
+				env = _migrate_3_to_4(env)
 			_:
 				return {}
 	return env
@@ -216,6 +310,17 @@ func _migrate_2_to_3(env: Dictionary) -> Dictionary:
 	if not (env.get("settings") is Dictionary):
 		env["settings"] = {"motion_mode": Settings.Motion.AUTO}
 	env["save_version"] = 3
+	return env
+
+
+func _migrate_3_to_4(env: Dictionary) -> Dictionary:
+	## v3 -> v4 (session 7): the `run` field goes live (best-effort mid-run
+	## state, spec §13). The key has existed as null since v1, so this only
+	## guarantees its presence and bumps the version — keys only ADDED; a v3
+	## save loads clean and starts at the surface.
+	if not env.has("run"):
+		env["run"] = null
+	env["save_version"] = 4
 	return env
 
 
@@ -310,7 +415,10 @@ func _on_cargo_sold(_value: int) -> void:
 
 
 func _on_run_lost(_reason: String, _cargo_lost: int) -> void:
-	save_now()
+	# Deferred: Main's run_lost handler respawns the player at the surface
+	# in this same emission, and the snapshot must record that post-run
+	# surface state — never the death spot as a live `run` (spec §13).
+	save_now.call_deferred()
 
 
 func _on_depth_changed(depth: int) -> void:
@@ -369,3 +477,13 @@ func _int_in(env: Dictionary, key: String, fallback: int) -> int:
 func _dict_in(env: Dictionary, key: String) -> Dictionary:
 	var v: Variant = env.get(key)
 	return v if v is Dictionary else {}
+
+
+func _float_in(env: Dictionary, key: String) -> float:
+	## NAN marks "absent or mistyped" — the caller treats it as not-sane.
+	var v: Variant = env.get(key)
+	if v is float:
+		return v
+	if v is int:
+		return float(v)
+	return NAN

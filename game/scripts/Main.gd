@@ -23,12 +23,21 @@ func _ready() -> void:
 	darkness.mine = mine
 	# The juice layer's shake target and particle-pool home (spec §7).
 	Juice.register(player.get_node("Camera2D"), mine)
+	# The §16 overlay's counter source (observes the window, never changes it).
+	DebugOverlay.register(mine)
 	var px := float(GameState.world.tile_px)
 	# Spawn beside the garage door (feedback #3): home is the first thing
 	# you see, and flying into it is how the hub opens.
 	player.spawn_position = Vector2(-px * 1.0, -2.0 * px)
 	GameState.run_lost.connect(_on_run_lost)
 	player.respawn()
+	# Best-effort mid-run restore (spec §13 `run`): a complete, sane snapshot
+	# resumes the run where the tab died; anything less already fell back to
+	# the surface start in SaveManager. Before warm_start, so the initial
+	# window generates around the restored spot.
+	var run_pos: Variant = SaveManager.consume_run_position()
+	if run_pos is Vector2:
+		player.restore_at(run_pos)
 	mine.warm_start()
 
 	# The garage (feedback #3): the physical hub trigger, drawn between the

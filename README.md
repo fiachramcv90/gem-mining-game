@@ -11,8 +11,6 @@ single-threaded HTML5, installable PWA).
 - **`prototype/`** — throwaway 0004 dig-feel prototype (served at
   `/prototype/`); the reference implementation the game's controls were
   ported from.
-- **`smoke-test/`** — throwaway 0011 iOS Safari smoke test (served at
-  `/smoke/`); kept until spec §16's memory profiling no longer needs it.
 - **`economy-sim/`** — the throwaway 0006 economy simulation
   (`node economy-sim/run.js`).
 
