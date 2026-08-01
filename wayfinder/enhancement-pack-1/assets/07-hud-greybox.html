@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>EP1-07 HUD grey-box — thumb test</title>
+<style>
+  :root{ --ink:#f2e9dc; --dim:#a08fb0; --gold:#ffcf5c; --gem:#5ce0d8; --danger:#ff6b6b;
+    --slot:#2e2238; --line:#4a3a5c; }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#0d0a12;color:var(--ink);touch-action:none;overscroll-behavior:none}
+  #world{position:fixed;inset:0;touch-action:none}
+  canvas{display:block;width:100%;height:100%}
+  /* config bar */
+  #bar{position:fixed;top:0;left:0;right:0;display:flex;gap:6px;padding:6px;z-index:30;
+    background:linear-gradient(#0d0a12ee,#0d0a1200);align-items:center;flex-wrap:wrap}
+  .cfg{font-size:10px;padding:6px 9px;border-radius:8px;background:#241a2e;border:1px solid var(--line);
+    color:var(--ink)}
+  .cfg b{color:var(--gem)}
+  #hint{position:fixed;left:8px;right:8px;bottom:8px;z-index:30;font-size:10px;color:var(--dim);
+    text-align:center;pointer-events:none;line-height:1.5}
+  /* slot buttons */
+  #slots{position:fixed;z-index:20;display:flex;gap:12px}
+  .slot{width:64px;height:64px;border-radius:16px;background:var(--slot);border:2px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink);
+    font-size:9px;position:relative}
+  .slot .ic{font-size:22px;line-height:1}
+  .slot .n{position:absolute;top:-6px;right:-6px;background:var(--gold);color:#000;border-radius:20px;
+    min-width:18px;height:18px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px}
+  .slot.armed{border-color:var(--gold);box-shadow:0 0 16px #ffcf5c88}
+  .slot:active{transform:scale(.94)}
+  /* layout variants for #slots */
+  .lay-corners{top:44px;right:10px;flex-direction:column}
+  .lay-side{top:50%;right:8px;transform:translateY(-50%);flex-direction:column}
+  .lay-bottom{bottom:70px;left:50%;transform:translateX(-50%);flex-direction:row}
+  /* detonate + aim marker */
+  #detonate{position:fixed;z-index:25;display:none;padding:14px 20px;border-radius:14px;
+    background:#3a1420;border:2px solid var(--danger);color:var(--danger);font-size:14px;font-weight:800;
+    left:50%;transform:translateX(-50%);bottom:150px}
+  #detonate.show{display:block}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;z-index:15;pointer-events:none}
+  #toast{position:fixed;left:50%;top:80px;transform:translateX(-50%);z-index:31;background:#241a2e;
+    border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:11px;color:var(--gem);
+    opacity:0;transition:opacity .15s;pointer-events:none;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+<div id="world"><canvas id="c"></canvas></div>
+
+<div id="bar">
+  <div class="cfg" id="btnLay">layout: <b>corners</b></div>
+  <div class="cfg" id="btnAim">aim: <b>tap-target</b></div>
+  <div class="cfg" id="btnCap">slots: <b>3</b></div>
+  <div class="cfg" id="btnReset">reset charges</div>
+</div>
+
+<div id="slots" class="lay-corners"></div>
+<button id="detonate">💥 DETONATE</button>
+<div id="flash"></div>
+<div id="toast"></div>
+<div id="hint">Hold anywhere in the lower area to spawn the <b>trailing stick</b> — the base follows your thumb. Drive the digger through rock. Then reach the slot buttons with your other thumb while steering. Toggle layout / aim / slot-cap up top.</div>
+
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let W, H, DPR;
+function resize(){ DPR = Math.min(2, window.devicePixelRatio||1);
+  W = c.clientWidth; H = c.clientHeight; c.width = W*DPR; c.height = H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize', resize);
+
+// ---- world: a rock field the digger carves ----
+const TILE = 26;
+let cols, rows, rock;
+function initRock(){ cols = Math.ceil(W/TILE)+1; rows = Math.ceil(H/TILE)+1;
+  rock = []; for(let y=0;y<rows;y++){ rock[y]=[]; for(let x=0;x<cols;x++){ rock[y][x] = y*TILE > H*0.32 ? 1 : 0; } } }
+
+// ---- digger ----
+const dig = { x:0, y:0, vx:0, vy:0, r:11 };
+function resetDigger(){ dig.x = W/2; dig.y = H*0.22; dig.vx=dig.vy=0; }
+
+// ---- trailing stick ----
+const stick = { active:false, id:null, ox:0, oy:0, tx:0, ty:0, out:{x:0,y:0} };
+const MAXR = 46, DEAD = 0.16;
+function stickVec(){
+  let dx = stick.tx - stick.ox, dy = stick.ty - stick.oy;
+  const d = Math.hypot(dx,dy);
+  if(d > MAXR){ // base trails the thumb
+    stick.ox = stick.tx - dx/d*MAXR; stick.oy = stick.ty - dy/d*MAXR; dx = dx/d*MAXR; dy = dy/d*MAXR; }
+  const mag = Math.hypot(dx,dy)/MAXR;
+  if(mag < DEAD){ stick.out.x=0; stick.out.y=0; return; }
+  const k = (mag-DEAD)/(1-DEAD);
+  stick.out.x = (dx/(MAXR||1))*k/ (mag||1) * mag; stick.out.y = (dy/(MAXR||1))*k/(mag||1)*mag;
+  // simpler: normalized direction * scaled magnitude
+  const nd = Math.hypot(dx,dy)||1; stick.out.x = dx/nd*k; stick.out.y = dy/nd*k;
+}
+
+// ---- config ----
+const cfg = { layout:'corners', aim:'tap-target', cap:3 };
+const LAYS = ['corners','side','bottom'];
+const AIMS = ['tap-target','drag-aim'];
+
+// ---- slots ----
+const TOOLS = [
+  { key:'flare',   ic:'🔆', label:'Flare\n(instant)', kind:'instant', max:5 },
+  { key:'dynamite',ic:'🧨', label:'Dynamite\n(aimed)', kind:'aimed-blast', max:4 },
+  { key:'scout',   ic:'🛰️', label:'Scout\n(aimed)', kind:'aimed-dir', max:2 },
+];
+let charges = {};
+function resetCharges(){ TOOLS.forEach(t=>charges[t.key]=t.max); renderSlots(); }
+let armed = null; // {key, kind}
+let aimMarker = null; // {x,y} for blast placement
+let detonateReady = false;
+
+const slotsEl = document.getElementById('slots');
+function renderSlots(){
+  slotsEl.className = 'lay-'+cfg.layout;
+  slotsEl.innerHTML = '';
+  TOOLS.slice(0, cfg.cap).forEach(t=>{
+    const b = document.createElement('div'); b.className='slot'+(armed&&armed.key===t.key?' armed':'');
+    b.innerHTML = `<div class="ic">${t.ic}</div><div>${t.key}</div><div class="n">${charges[t.key]}</div>`;
+    b.addEventListener('pointerdown', e=>{ e.stopPropagation(); e.preventDefault(); fireSlot(t); });
+    slotsEl.appendChild(b);
+  });
+}
+
+function toast(msg, col){ const el=document.getElementById('toast'); el.textContent=msg;
+  el.style.color = col||'var(--gem)'; el.style.opacity=1; clearTimeout(el._t);
+  el._t=setTimeout(()=>el.style.opacity=0, 1100); }
+function flash(){ const f=document.getElementById('flash'); f.style.transition='none'; f.style.opacity=.85;
+  requestAnimationFrame(()=>{ f.style.transition='opacity .5s'; f.style.opacity=0; }); }
+
+function fireSlot(t){
+  if(charges[t.key]<=0){ toast(t.key+': no charges', 'var(--danger)'); return; }
+  if(t.kind==='instant'){ charges[t.key]--; flash(); toast('🔆 flare — one tap, instant'); renderSlots(); return; }
+  // aimed: arm it
+  armed = { key:t.key, kind:t.kind };
+  detonateReady=false; document.getElementById('detonate').classList.remove('show');
+  if(cfg.aim==='tap-target'){ toast('armed '+t.key+' — TAP where to aim', 'var(--gold)'); aimMarker=null; }
+  else { toast('armed '+t.key+' — DRAG on the field to aim', 'var(--gold)'); aimMarker=null; }
+  renderSlots();
+}
+
+// aim placement on the world (tap-target mode) or drag (drag-aim)
+function placeAim(x,y){
+  if(!armed) return false;
+  aimMarker = {x,y};
+  if(armed.kind==='aimed-dir'){ // scout: fire immediately along direction from digger
+    charges[armed.key]--; toast('🛰️ scout sent toward tap — retreat not needed'); armed=null; renderSlots();
+    setTimeout(()=>{aimMarker=null;},600); return true; }
+  if(armed.kind==='aimed-blast'){ // dynamite: now require retreat + detonate
+    detonateReady=true; document.getElementById('detonate').classList.add('show');
+    toast('placed 🧨 — now RETREAT with the stick, then DETONATE', 'var(--gold)'); return true; }
+  return true;
+}
+
+document.getElementById('detonate').addEventListener('pointerdown', e=>{
+  e.stopPropagation(); e.preventDefault();
+  if(!armed || armed.kind!=='aimed-blast' || !aimMarker) return;
+  const dx=dig.x-aimMarker.x, dy=dig.y-aimMarker.y; const dist=Math.hypot(dx,dy);
+  charges[armed.key]--;
+  // carve a blast crater
+  carveBlast(aimMarker.x, aimMarker.y, 46);
+  if(dist < 60){ flash(); toast('💥 caught in your own blast! ('+Math.round(dist)+'px) — retreat further', 'var(--danger)'); }
+  else { toast('💥 clean blast ('+Math.round(dist)+'px clear)', 'var(--gem)'); }
+  armed=null; aimMarker=null; detonateReady=false;
+  document.getElementById('detonate').classList.remove('show'); renderSlots();
+});
+
+function carveBlast(px,py,rad){ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+  if(rock[y][x] && Math.hypot(x*TILE+TILE/2-px, y*TILE+TILE/2-py)<rad) rock[y][x]=0; } }
+
+// ---- config buttons ----
+document.getElementById('btnLay').addEventListener('pointerdown', e=>{ e.stopPropagation();
+  cfg.layout = LAYS[(LAYS.indexOf(cfg.layout)+1)%LAYS.length];
+  e.currentTarget.innerHTML='layout: <b>'+cfg.layout+'</b>'; renderSlots(); });
+document.getElementById('btnAim').addEventListener('pointerdown', e=>{ e.stopPropagation();
+  cfg.aim = AIMS[(AIMS.indexOf(cfg.aim)+1)%AIMS.length];
+  e.currentTarget.innerHTML='aim: <b>'+cfg.aim+'</b>'; });
+document.getElementById('btnCap').addEventListener('pointerdown', e=>{ e.stopPropagation();
+  cfg.cap = cfg.cap===3?2:3; e.currentTarget.innerHTML='slots: <b>'+cfg.cap+'</b>'; renderSlots(); });
+document.getElementById('btnReset').addEventListener('pointerdown', e=>{ e.stopPropagation(); resetCharges(); toast('charges reset'); });
+
+// ---- pointer handling on the world ----
+const world = document.getElementById('world');
+world.addEventListener('pointerdown', e=>{
+  const x=e.clientX, y=e.clientY;
+  // if armed + aim mode, a tap on the field places the aim
+  if(armed && (cfg.aim==='tap-target' || armed.kind==='aimed-dir')){ placeAim(x,y); return; }
+  if(armed && cfg.aim==='drag-aim'){ placeAim(x,y); /* start drag */
+     stick.active=false; return; }
+  // otherwise start the trailing stick (only if in lower ~70%)
+  if(!stick.active){ stick.active=true; stick.id=e.pointerId; stick.ox=x; stick.oy=y; stick.tx=x; stick.ty=y; }
+});
+world.addEventListener('pointermove', e=>{
+  if(armed && cfg.aim==='drag-aim' && aimMarker && armed.kind==='aimed-blast'){ /* re-place while dragging */
+    aimMarker={x:e.clientX,y:e.clientY}; return; }
+  if(stick.active && e.pointerId===stick.id){ stick.tx=e.clientX; stick.ty=e.clientY; }
+});
+function endStick(e){ if(stick.active && e.pointerId===stick.id){ stick.active=false; stick.out.x=0; stick.out.y=0; } }
+world.addEventListener('pointerup', endStick);
+world.addEventListener('pointercancel', endStick);
+
+// ---- main loop ----
+const SPEED = 2.6;
+function loop(){
+  if(stick.active) stickVec(); else { stick.out.x=0; stick.out.y=0; }
+  dig.vx = stick.out.x*SPEED*3.5; dig.vy = stick.out.y*SPEED*3.5;
+  dig.x += dig.vx; dig.y += dig.vy;
+  dig.x = Math.max(dig.r, Math.min(W-dig.r, dig.x)); dig.y = Math.max(dig.r, Math.min(H-dig.r, dig.y));
+  // carve rock the digger touches
+  const gx=Math.floor(dig.x/TILE), gy=Math.floor(dig.y/TILE);
+  for(let y=gy-1;y<=gy+1;y++)for(let x=gx-1;x<=gx+1;x++){ if(rock[y]&&rock[y][x]) rock[y][x]=0; }
+
+  // draw
+  ctx.clearRect(0,0,W,H);
+  // rock
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){ if(rock[y][x]){
+    ctx.fillStyle = (x+y)%2? '#2a2233':'#241d2d'; ctx.fillRect(x*TILE,y*TILE,TILE-1,TILE-1); } }
+  // sky/tunnel top line
+  ctx.strokeStyle='#3a2c48'; ctx.beginPath(); ctx.moveTo(0,H*0.32); ctx.lineTo(W,H*0.32); ctx.stroke();
+  // aim marker
+  if(aimMarker){ ctx.strokeStyle='#ffcf5c'; ctx.lineWidth=2; ctx.beginPath();
+    ctx.arc(aimMarker.x,aimMarker.y,46,0,7); ctx.stroke();
+    ctx.fillStyle='#ffcf5c'; ctx.font='16px monospace'; ctx.fillText('🧨',aimMarker.x-8,aimMarker.y+6); }
+  // digger
+  ctx.fillStyle='#5ce0d8'; ctx.beginPath(); ctx.arc(dig.x,dig.y,dig.r,0,7); ctx.fill();
+  ctx.fillStyle='#0d0a12'; ctx.fillRect(dig.x-3,dig.y-3,6,6);
+  // stick
+  if(stick.active){ ctx.strokeStyle='#a08fb0'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(stick.ox,stick.oy,MAXR,0,7); ctx.stroke();
+    ctx.fillStyle='#ffcf5c'; ctx.beginPath(); ctx.arc(stick.tx,stick.ty,16,0,7); ctx.fill(); }
+  requestAnimationFrame(loop);
+}
+
+resize(); initRock(); resetDigger(); resetCharges(); loop();
+window.addEventListener('resize', ()=>{ resize(); initRock(); resetDigger(); });
+</script>
+</body>
+</html>
