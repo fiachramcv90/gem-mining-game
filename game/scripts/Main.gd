@@ -15,6 +15,11 @@ func _ready() -> void:
 	if not SaveManager.load_game():
 		GameState.new_game()
 		SaveManager.save_now()
+	# EP1: mint the durable device_id + default nickname if the save had none
+	# (new game or a just-migrated pre-v5 save), then post any dirty score
+	# from a prior session (a no-op offline — spec L4 app-launch trigger).
+	Leaderboard.ensure_identity()
+	Leaderboard.on_app_launch()
 	mine.setup(Worldgen.new(GameState.world, GameState.hazards, GameState.world_seed))
 	mine.player = player
 	player.mine = mine
@@ -47,6 +52,16 @@ func _ready() -> void:
 	garage.hud = hud
 	add_child(garage)
 	move_child(garage, mine.get_index() + 1)
+
+	# EP1 consumables: the in-run effect actuator the HUD's corner buttons
+	# drive (spec C3/C4). Wired like the garage — a per-scene node over the
+	# autoload state.
+	var tools := ToolRunner.new()
+	tools.player = player
+	tools.mine = mine
+	tools.darkness = darkness
+	add_child(tools)
+	hud.set_tool_runner(tools)
 
 
 func _on_run_lost(_reason: String, _cargo_lost: int) -> void:

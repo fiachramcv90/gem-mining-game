@@ -32,6 +32,15 @@ uniform float lava_radius = 96.0;
 uniform vec4 lava_color : source_color = vec4(1.0, 0.42, 0.12, 1.0);
 uniform float lava_heat_alpha = 0.4;
 
+// EP1 flare (spec C4/EP1-10): a scarce, placed, TEMPORARY lit disc dropped
+// ahead of the digger — wider than the personal Light bubble, ~10s, then
+// fades. It cuts the darkness open like a second light source (no heat
+// tint), complementing (never replacing) the permanent+personal Light.
+uniform int flare_count = 0;
+uniform vec2 flare_pos[4];
+uniform float flare_radius[4];
+uniform float flare_strength[4];
+
 void fragment() {
 	vec2 p = UV * view_size;
 	float dist = distance(p, light_pos);
@@ -64,6 +73,16 @@ void fragment() {
 	}
 	dark *= 1.0 - reveal;
 	float heat_a = heat * lava_heat_alpha;
+
+	// Flares cut the darkness open the same way the player's lit disc does —
+	// a soft-edged reveal that fades with the flare's remaining life.
+	float flare_reveal = 0.0;
+	for (int i = 0; i < flare_count; i++) {
+		float d = distance(p, flare_pos[i]);
+		float fr = (1.0 - smoothstep(flare_radius[i] * 0.6, flare_radius[i], d)) * flare_strength[i];
+		flare_reveal = max(flare_reveal, fr);
+	}
+	dark *= 1.0 - flare_reveal;
 
 	// In the dark (alpha 1) the glint mixes gold into the black; in the lit
 	// area it lays a soft gold sparkle over the world. Lava's heat tint
