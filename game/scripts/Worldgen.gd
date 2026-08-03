@@ -221,6 +221,35 @@ func _is_cave(x: int, y: int) -> bool:
 # --- veins (spec §3): 2-5 same-tier tiles wrapped in a +1-hardness halo -----
 
 
+func find_scout_target(from: Vector2i, radius: int, min_tier: int) -> Variant:
+	## EP1 scout drone (EP1-09): the nearest still-in-ground high-value gem
+	## (tier >= min_tier, or the prize) within `radius` tiles of `from`, by
+	## querying the deterministic vein layout (no chunk simulation needed).
+	## Returns the target tile (Vector2i) or null when there is no lead in
+	## range — the scout refuses and keeps its charge (never wasted).
+	var vc := config.vein_cell_size
+	var v0 := Vector2i(fdiv(from.x - radius - 2, vc), fdiv(from.y - radius - 2, vc))
+	var v1 := Vector2i(fdiv(from.x + radius + 2, vc), fdiv(from.y + radius + 2, vc))
+	var best: Variant = null
+	var best_d := INF
+	for vy in range(v0.y, v1.y + 1):
+		for vx in range(v0.x, v1.x + 1):
+			var vein := _vein_for_cell(vx, vy)
+			if vein.is_empty():
+				continue
+			for tile: Vector2i in vein["gems"].keys():
+				var tier: int = vein["gems"][tile]
+				if tier != PRIZE_TIER and tier < min_tier:
+					continue
+				if GameState.is_dug(tile) or GameState.is_collected(tile):
+					continue
+				var d := (Vector2(tile) - Vector2(from)).length()
+				if d <= float(radius) and d < best_d:
+					best_d = d
+					best = tile
+	return best
+
+
 func _vein_for_cell(vx: int, vy: int) -> Dictionary:
 	var vc := config.vein_cell_size
 	var mid_y := vy * vc + vc / 2

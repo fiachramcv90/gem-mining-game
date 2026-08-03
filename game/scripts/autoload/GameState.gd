@@ -20,11 +20,15 @@ signal prizes_banked(count: int)
 signal hazard_survived(kind: String, amount: float)
 
 ## Hazard kind tags for apply_hazard_damage / hazard_survived — one per
-## trigger mechanism (spec §5).
+## trigger mechanism (spec §5). HAZARD_BLAST is EP1 dynamite self-damage:
+## it rides the same 0007 currency (a fraction of CURRENT hull, like falls)
+## so it reads as your own risk, not a new hazard type — the Miner's Log
+## awards no badge for it (no matching milestone), by design.
 const HAZARD_FALL := "fall"
 const HAZARD_GAS := "gas"
 const HAZARD_CAVEIN := "cavein"
 const HAZARD_LAVA := "lava"
+const HAZARD_BLAST := "blast"
 
 ## The three config resources (Appendix A). Loaded once; every derived value
 ## (drill time, capacities) is computed from (config, upgrades, depth) —
@@ -89,6 +93,42 @@ func set_depth(d: int) -> void:
 		return
 	depth = d
 	depth_changed.emit(depth)
+
+
+func add_pressure(fuel_amount: float, hull_amount: float) -> void:
+	## EP1 relief consumables (C4/EP1-10): the fuel cell tops up the round-trip
+	## budget, the repair kit patches the hull — each a discretionary boost
+	## capped at its loaded capacity. Extends the greed gamble, never removes
+	## the gate; the free surface refuel/repair stays separate. One entry point
+	## so a relief item passes only the pressure it insures (the other is 0).
+	if fuel_amount > 0.0:
+		fuel = minf(float(Upgrades.fuel_capacity()), fuel + fuel_amount)
+		fuel_changed.emit(fuel, float(Upgrades.fuel_capacity()))
+	if hull_amount > 0.0:
+		hull = minf(float(Upgrades.hull_capacity()), hull + hull_amount)
+		hull_changed.emit(hull, float(Upgrades.hull_capacity()))
+
+
+func take_haulable_cargo() -> int:
+	## EP1 hauler drone (C4/EP1-09): the drone leaves with the current NON-prize
+	## cargo — removed from the hold at dispatch so digging can continue — and
+	## returns its sale value. The drone banks it at trip end by emitting
+	## cargo_sold (the same banking event a surface sale fires), so the save
+	## snapshot, MinersLog.money_banked, and the leaderboard best_haul per-run
+	## accumulator all fold it in identically. The prize refuses the drone
+	## (must be hauled home by you), so it stays in the hold.
+	var value := 0
+	var kept: Array[int] = []
+	for tier in cargo:
+		if tier == Worldgen.PRIZE_TIER:
+			kept.append(tier)
+		else:
+			value += economy.gem_value[tier - 1]
+	if value <= 0:
+		return 0
+	cargo = kept
+	cargo_changed.emit(cargo.size(), Upgrades.cargo_slots())
+	return value
 
 
 func drain_fuel(amount: float) -> void:

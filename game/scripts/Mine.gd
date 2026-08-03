@@ -221,6 +221,78 @@ func dig(tile: Vector2i) -> void:
 	_check_undermined(tile)
 
 
+# --- EP1 consumables: dynamite blast + scout tunnel ---------------------------
+
+
+func world_center(tile: Vector2i) -> Vector2:
+	## World-px centre of a tile — the shared anchor for tool effects.
+	var px := float(worldgen.config.tile_px)
+	return Vector2(tile) * px + Vector2(px, px) * 0.5
+
+
+func blast(center: Vector2i, down: int, up: int, wide: int) -> void:
+	## EP1 dynamite (C4/EP1-08): a downward-biased teardrop that IGNORES
+	## hardness (clears any stratum the drill also can — the guardrail holds
+	## via drill ⊇ dynamite + scarcity). It never touches the unbreakable
+	## shaft walls/floor (Kind.BEDROCK), lava, or the immune prize; caught
+	## gems are DESTROYED (traversal, not harvest), so blasting a vein wastes
+	## it and hand-drilling rich rock stays the pleasure.
+	for dy in range(-up, down + 1):
+		var span := float(down if dy >= 0 else up)
+		var taper := 0.0 if span <= 0.0 else absf(float(dy)) / span
+		var half := int(round(float(wide) * (1.0 - 0.5 * taper)))
+		for dx in range(-half, half + 1):
+			_blast_tile(center + Vector2i(dx, dy))
+
+
+func _blast_tile(tile: Vector2i) -> void:
+	var code := code_at(tile)
+	var kind := Worldgen.kind_of(code)
+	if (
+		kind == Worldgen.Kind.AIR
+		or kind == Worldgen.Kind.BEDROCK
+		or kind == Worldgen.Kind.LAVA
+		or kind == Worldgen.Kind.PRIZE
+	):
+		return
+	# A caught gem is wasted, not collected: mark it collected so it never
+	# returns as a pickup (traversal, not harvest — EP1-08 §4).
+	if kind == Worldgen.Kind.GEM:
+		GameState.mark_collected(tile)
+	# Cleared like a cave-in drop (player_dug false: not a drill dig, so it
+	# never counts toward tiles_dug or bursts gas onto you — the blast's only
+	# damage is its own retreat gamble).
+	GameState.mark_dug(tile, false)
+	rock.erase_cell(tile)
+	var cc := GameState.chunk_of(tile)
+	if _chunk_codes.has(cc):
+		_chunk_codes[cc].erase(tile)
+	_prize_tiles.erase(tile)
+	Juice.burst(world_center(tile), Palette.band_mid(worldgen.band_index(tile.y)), 4)
+
+
+func tunnel_clear(tile: Vector2i) -> bool:
+	## EP1 scout (C4/EP1-09): open a thin path toward a lead. Clears plain
+	## rock (rock/halo/unstable/gas — gas silently, no burst) but LEAVES gems
+	## and the prize standing so you still mine the find yourself (bypasses
+	## the finding, never the mining). Returns true if it cleared solid rock.
+	var kind := Worldgen.kind_of(code_at(tile))
+	if (
+		kind != Worldgen.Kind.ROCK
+		and kind != Worldgen.Kind.HALO
+		and kind != Worldgen.Kind.UNSTABLE
+		and kind != Worldgen.Kind.GAS
+	):
+		return false
+	GameState.mark_dug(tile, false)
+	rock.erase_cell(tile)
+	var cc := GameState.chunk_of(tile)
+	if _chunk_codes.has(cc):
+		_chunk_codes[cc].erase(tile)
+	Juice.burst(world_center(tile), Palette.band_dark(worldgen.band_index(tile.y)), 3)
+	return true
+
+
 # --- cave-ins (spec §5, Act II): undermining cracked rock drops it ------------
 
 

@@ -13,6 +13,18 @@ var audio_hint_shown := false
 ## lost), 2 = re-shown and dismissed again — retired for good.
 var a2hs_dismissed := 0
 
+## EP1 onboarding one-shots (spec C5/EP1-11): ghost lines that self-dismiss on
+## first success. All ride in this existing dict — no new save migration.
+## loadout_shown: the "equip up to 3 — tap a slot" line in the garage.
+## hud_gear_shown: the "your gear — tap to use" corner line on first descent.
+## dynamite_taught: the one-shot "GET CLEAR!" line (the lit fuse is the
+## permanent teacher). board_intro_shown: the one gentle first-board-view line
+## covering nickname-rename + groups.
+var loadout_shown := false
+var hud_gear_shown := false
+var dynamite_taught := false
+var board_intro_shown := false
+
 ## Transient re-arm: set when a run is lost while a2hs_dismissed == 1 — the
 ## one re-show, at the moment "losing things" is emotionally live (0013).
 var _a2hs_reshown := false
@@ -45,8 +57,29 @@ func load_state(nudges_in: Dictionary) -> void:
 		a2hs_dismissed = clampi(int(d), 0, 2)
 	else:
 		a2hs_dismissed = 0
+	loadout_shown = bool(nudges_in.get("loadout_shown", false))
+	hud_gear_shown = bool(nudges_in.get("hud_gear_shown", false))
+	dynamite_taught = bool(nudges_in.get("dynamite_taught", false))
+	board_intro_shown = bool(nudges_in.get("board_intro_shown", false))
 	_a2hs_reshown = false
 	nudges_changed.emit()
+
+
+func mark_nudge(flag: String) -> void:
+	## Set an EP1 one-shot flag and persist it (self-heals to false on absence,
+	## exactly like 0013's nudges). Called the first time each teach lands.
+	match flag:
+		"loadout_shown":
+			loadout_shown = true
+		"hud_gear_shown":
+			hud_gear_shown = true
+		"dynamite_taught":
+			dynamite_taught = true
+		"board_intro_shown":
+			board_intro_shown = true
+		_:
+			return
+	SaveManager.save_now()
 
 
 func mark_audio_hint_shown() -> void:
