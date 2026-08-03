@@ -215,7 +215,17 @@ func _submit_scores() -> void:
 	if not ok:
 		_posting = false
 		return  # stays dirty; retries at the next trigger
-	var body := JSON.stringify({"p_total": total_banked(), "p_best": best_haul})
+	var body := (
+		JSON
+		. stringify(
+			{
+				"p_device_id": device_id,
+				"p_nickname": nickname,
+				"p_total": total_banked(),
+				"p_best": best_haul,
+			}
+		)
+	)
 	var err := _http.request(
 		"%s/rest/v1/rpc/submit_score" % config.url(), _auth_headers(), HTTPClient.METHOD_POST, body
 	)

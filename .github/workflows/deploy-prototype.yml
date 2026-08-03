@@ -21,6 +21,7 @@ on:
       - claude/gem-miner-build-slice-05-yh3jmn
       - claude/gem-miner-art-juice-pass-v9l345
       - claude/gem-miner-instrumentation-hardening-x4b9v4
+      - claude/ep1-implementation-lyr8kx
   workflow_dispatch:
 
 permissions:
