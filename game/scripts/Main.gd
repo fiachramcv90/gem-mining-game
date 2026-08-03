@@ -12,13 +12,15 @@ func _ready() -> void:
 	# Load-on-boot (spec §13): a valid save restores the persistent mine;
 	# absent or corrupt (world_seed missing) starts a new game — whose seed
 	# is snapshotted immediately so it survives the very first tab close.
-	if not SaveManager.load_game():
+	var had_save := SaveManager.load_game()
+	# EP1: mint the durable device_id + default nickname if the save had none
+	# (new game or a just-migrated pre-v5 save) BEFORE the first snapshot, so
+	# identity persists from the very first tab close.
+	Leaderboard.ensure_identity()
+	if not had_save:
 		GameState.new_game()
 		SaveManager.save_now()
-	# EP1: mint the durable device_id + default nickname if the save had none
-	# (new game or a just-migrated pre-v5 save), then post any dirty score
-	# from a prior session (a no-op offline — spec L4 app-launch trigger).
-	Leaderboard.ensure_identity()
+	# Post any dirty score left from a prior session (no-op offline — spec L4).
 	Leaderboard.on_app_launch()
 	mine.setup(Worldgen.new(GameState.world, GameState.hazards, GameState.world_seed))
 	mine.player = player
