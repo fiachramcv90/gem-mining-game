@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="LeaderboardConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/LeaderboardConfig.gd" id="1_lb"]
+
+[resource]
+script = ExtResource("1_lb")
+project_url = "https://wcfalrjzuynnjkrjbral.supabase.co"
+anon_key = "sb_publishable_sZyNLSsLMPysypTcM5lrCw_Cm5gpmQR"

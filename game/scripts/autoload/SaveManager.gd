@@ -15,7 +15,7 @@ signal import_succeeded
 signal import_failed(reason: String)
 
 const SAVE_PATH := "user://save.dat"
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 const EXPORT_FILENAME := "gem-miner-save.dat"
 const IMPORT_INPUT_ID := "gem-miner-import"
 
@@ -109,15 +109,24 @@ func build_envelope() -> Dictionary:
 		"run": _run_state(),  # best-effort mid-run state (spec §13, save_version 4)
 		"stats": MinersLog.stats.duplicate(),  # 0012 (spec §8)
 		"milestones": MinersLog.milestones.duplicate(),  # 0012 (spec §8)
-		"nudges":  # 0013 (spec §9)
+		"nudges":  # 0013 (spec §9); EP1 onboarding flags ride in this dict too
 		{
 			"audio_hint_shown": Nudges.audio_hint_shown,
 			"a2hs_dismissed": Nudges.a2hs_dismissed,
+			"loadout_shown": Nudges.loadout_shown,
+			"hud_gear_shown": Nudges.hud_gear_shown,
+			"dynamite_taught": Nudges.dynamite_taught,
+			"board_intro_shown": Nudges.board_intro_shown,
 		},
 		"settings":  # §7 reduce-motion toggle (session 6)
 		{
 			"motion_mode": Settings.motion_mode,
 		},
+		# --- EP1 (save_version 5) ---------------------------------------------
+		"best_haul": Leaderboard.best_haul,  # EP1-03 per-run best (spec §E3)
+		"device_id": Leaderboard.device_id,  # EP1-02 durable identity anchor
+		"nickname": Leaderboard.nickname,  # EP1-02 display label
+		"consumables": Loadout.build_state(),  # EP1 loadout: unlocks/stock/slots
 		"meta":
 		{
 			"saved_at": int(Time.get_unix_time_from_system()),
@@ -172,6 +181,8 @@ func apply_envelope(env: Dictionary) -> void:
 	MinersLog.load_state(_dict_in(env, "stats"), _dict_in(env, "milestones"))
 	Nudges.load_state(_dict_in(env, "nudges"))
 	Settings.load_state(_dict_in(env, "settings"))
+	Leaderboard.load_state(env)  # EP1 flat fields: best_haul/device_id/nickname
+	Loadout.load_state(_dict_in(env, "consumables"))  # EP1 loadout state
 	GameState.cargo.clear()
 	GameState.top_up()
 	GameState.set_depth(0)
@@ -284,6 +295,8 @@ func _migrate(env: Dictionary) -> Dictionary:
 				env = _migrate_2_to_3(env)
 			3:
 				env = _migrate_3_to_4(env)
+			4:
+				env = _migrate_4_to_5(env)
 			_:
 				return {}
 	return env
@@ -321,6 +334,28 @@ func _migrate_3_to_4(env: Dictionary) -> Dictionary:
 	if not env.has("run"):
 		env["run"] = null
 	env["save_version"] = 4
+	return env
+
+
+func _migrate_4_to_5(env: Dictionary) -> Dictionary:
+	## v4 -> v5 (EP1): the leaderboard + consumables save envelope (spec §E3).
+	## Keys only ADDED; a v4 save loads clean. best_haul cannot self-heal (no
+	## history to derive a best run from) — old saves honestly start at 0 and
+	## set their record going forward (mirrors 0012's event-only badges).
+	## device_id/nickname are minted here if absent; the EP1 onboarding flags
+	## ride in the existing `nudges` dict (no extra field). total_banked needs
+	## nothing — it is already stats.money_banked.
+	if not (env.get("best_haul") is int):
+		env["best_haul"] = 0
+	if not (env.get("device_id") is String) or str(env.get("device_id", "")).is_empty():
+		env["device_id"] = Leaderboard._new_uuid()
+	if not (env.get("nickname") is String) or str(env.get("nickname", "")).is_empty():
+		# Default derived from the freshly-minted device_id (lazy identity).
+		var tag: String = str(env["device_id"]).replace("-", "").substr(0, 4).to_upper()
+		env["nickname"] = "Prospector-%s" % tag
+	if not (env.get("consumables") is Dictionary):
+		env["consumables"] = {"unlocked": {}, "stock": {}, "loadout": []}
+	env["save_version"] = 5
 	return env
 
 

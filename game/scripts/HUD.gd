@@ -45,6 +45,11 @@ var _ghost_line: Label
 var _ghost_state := GhostState.ARMED
 var _ghost_clock := 0.0
 
+## The EP1 in-run consumables corner (spec C3). Main hands it the ToolRunner
+## via set_tool_runner() after the scene wires up (HUD's child _ready runs
+## before Main's _ready, so _consumables_hud already exists).
+var _consumables_hud: ConsumablesHUD
+
 ## The shared panel theme (feedback #4), built once.
 var _theme: Theme
 
@@ -94,6 +99,11 @@ func _ready() -> void:
 	_ghost_line = _build_ghost_line()
 	add_child(_ghost_line)
 
+	# The EP1 consumables corner (spec C3): built before Main wires `tools`.
+	_consumables_hud = ConsumablesHUD.new()
+	_consumables_hud.theme = _theme
+	add_child(_consumables_hud)
+
 	# The tap-to-start screen sits over everything (spec §9): it pauses the
 	# tree in its _ready and the game-starting tap releases it.
 	_title = TitleScreen.new()
@@ -103,12 +113,20 @@ func _ready() -> void:
 	GameState.cargo_sold.connect(_on_cargo_sold)
 	GameState.tile_dug.connect(_on_first_dig)
 	MinersLog.milestone_earned.connect(_on_milestone_earned)
+	# The EP1 post-run compare (spec L5-C): a non-blocking banner on a new
+	# best haul, at the surface where banking happens — never a mid-run modal.
+	Leaderboard.best_haul_improved.connect(_on_best_haul_improved)
 
 
 func _process(delta: float) -> void:
 	_tick_ghost_line(delta)
 	_tick_fuel_warning()
 	_readout.queue_redraw()
+
+
+func set_tool_runner(runner: ToolRunner) -> void:
+	## Main hands over the per-scene consumables actuator (spec C3/C4).
+	_consumables_hud.tools = runner
 
 
 func is_idle() -> bool:
@@ -423,6 +441,21 @@ func _play_next_banner() -> void:
 func _on_banner_done() -> void:
 	_banner_playing = false
 	_play_next_banner()
+
+
+func _on_best_haul_improved(value: int) -> void:
+	## Only at the surface (spec L5-C: on the sell/surface screen, never a
+	## mid-run modal) — a mid-descent hauler record updates silently and shows
+	## on the next surfacing. Reuses the milestone banner + a gold beat.
+	if GameState.depth > 0:
+		return
+	var line := "NEW BEST HAUL  $%d" % value
+	if Leaderboard.best_rank() > 0:
+		line += "  —  #%d" % Leaderboard.best_rank()
+	_banner_queue.append(line)
+	_play_next_banner()
+	Juice.flash(Palette.UI_GOLD, 0.18)
+	Juice.shake(0.25)
 
 
 # --- the controls ghost line (spec §9) -------------------------------------------

@@ -17,9 +17,15 @@ extends ColorRect
 
 const MAX_GLINTS := 4
 const MAX_LAVA_GLOWS := 8
+const MAX_FLARES := 4
 
 var player: Node2D
 var mine: Mine
+
+## Active EP1 flares (spec C4/EP1-10): each {pos: world Vector2, radius: world
+## px, born: sec, dies: sec}. Dropped by the ToolRunner, fade over their life,
+## self-remove on expiry — a scarce, placed, temporary reveal.
+var _flares: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -79,3 +85,45 @@ func _process(_delta: float) -> void:
 	mat.set_shader_parameter("lava_pos", lava_screen)
 	mat.set_shader_parameter("lava_count", lava_points.size())
 	mat.set_shader_parameter("lava_radius", glow_px * px_per_world)
+
+	_update_flares(mat, ct, px_per_world)
+
+
+func add_flare(world_pos: Vector2, radius_tiles: float, duration: float) -> void:
+	## The ToolRunner drops a flare here (spec C4/EP1-10). Over MAX_FLARES the
+	## oldest is displaced so a fresh drop always lights.
+	var now := Time.get_ticks_msec() * 0.001
+	var tile_px := float(GameState.world.tile_px)
+	if _flares.size() >= MAX_FLARES:
+		_flares.pop_front()
+	_flares.append(
+		{"pos": world_pos, "radius": radius_tiles * tile_px, "born": now, "dies": now + duration}
+	)
+
+
+func _update_flares(mat: ShaderMaterial, ct: Transform2D, px_per_world: float) -> void:
+	var now := Time.get_ticks_msec() * 0.001
+	var i := 0
+	while i < _flares.size():
+		if now >= float(_flares[i]["dies"]):
+			_flares.remove_at(i)
+		else:
+			i += 1
+	var pos := PackedVector2Array()
+	pos.resize(MAX_FLARES)
+	var radii := PackedFloat32Array()
+	radii.resize(MAX_FLARES)
+	var strengths := PackedFloat32Array()
+	strengths.resize(MAX_FLARES)
+	for j in range(mini(_flares.size(), MAX_FLARES)):
+		var f := _flares[j]
+		pos[j] = ct * Vector2(f["pos"])
+		radii[j] = float(f["radius"]) * px_per_world
+		# Quick ignite, hold, then fade over the last ~2s of the flare's life.
+		var age := now - float(f["born"])
+		var remaining := float(f["dies"]) - now
+		strengths[j] = clampf(minf(age * 4.0, remaining * 0.5), 0.0, 1.0)
+	mat.set_shader_parameter("flare_pos", pos)
+	mat.set_shader_parameter("flare_radius", radii)
+	mat.set_shader_parameter("flare_strength", strengths)
+	mat.set_shader_parameter("flare_count", mini(_flares.size(), MAX_FLARES))
