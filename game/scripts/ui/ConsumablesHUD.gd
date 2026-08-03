@@ -40,8 +40,13 @@ var _dynamite_ghost_clock := 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# A top-level Control added to a CanvasLayer at runtime is NOT auto-sized to
+	# the viewport until the first resize fires (same lesson as TitleScreen) —
+	# so anchors alone resolve against a 0×0 rect and the top-right corner lands
+	# off-screen left. Drive our own size from the viewport and keep it synced.
+	_fit_to_viewport()
+	get_viewport().size_changed.connect(_fit_to_viewport)
 
 	_slots = VBoxContainer.new()
 	_slots.add_theme_constant_override("separation", int(SLOT_GAP))
@@ -69,6 +74,15 @@ func _ready() -> void:
 	Loadout.stock_changed.connect(_on_stock_changed)
 	Loadout.tool_used.connect(_on_tool_used)
 	_rebuild()
+
+
+func _fit_to_viewport() -> void:
+	## Own our rect from the viewport (TitleScreen's pattern) so the child slot
+	## anchors resolve against the true screen width, not a 0×0 parent.
+	var vp := get_viewport().get_visible_rect().size
+	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	position = Vector2.ZERO
+	size = vp
 
 
 func _pin_top_right(node: Control, top: float) -> void:
