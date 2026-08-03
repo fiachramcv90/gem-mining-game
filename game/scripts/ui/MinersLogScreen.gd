@@ -207,6 +207,13 @@ func _build_identity_row() -> HBoxContainer:
 	_nick_edit.max_length = Leaderboard.NICK_MAX
 	_nick_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_nick_edit.placeholder_text = "your name"
+	# On the web export the on-screen keyboard doesn't attach to a Godot
+	# LineEdit (no real focused <input>), so on iOS/Android the field can't be
+	# typed into. Make it a tap-to-edit trigger that uses the browser's native
+	# prompt (see _on_rename); desktop keeps normal text entry.
+	if OS.has_feature("web"):
+		_nick_edit.editable = false
+		_nick_edit.gui_input.connect(_on_field_tapped.bind(_on_rename))
 	row.add_child(_nick_edit)
 	var rename := Button.new()
 	rename.text = "RENAME"
@@ -216,11 +223,33 @@ func _build_identity_row() -> HBoxContainer:
 
 
 func _on_rename() -> void:
-	if Leaderboard.set_nickname(_nick_edit.text):
+	var new_name := _nick_edit.text
+	if OS.has_feature("web"):
+		new_name = _web_prompt("Your leaderboard name (3–16 characters)", Leaderboard.nickname)
+		if new_name.is_empty():
+			return  # cancelled
+	if Leaderboard.set_nickname(new_name):
+		_nick_edit.text = Leaderboard.nickname
+		_board_status.visible = false
 		Sfx.play("upgrade")
 	else:
 		_board_status.text = "name must be 3–16 characters"
 		_board_status.visible = true
+
+
+func _on_field_tapped(event: InputEvent, handler: Callable) -> void:
+	## Web-only: a tap on a (non-editable) field runs its edit action so the
+	## native prompt opens — the natural "tap the box to type" gesture.
+	if event is InputEventScreenTouch and event.pressed:
+		handler.call()
+
+
+func _web_prompt(message: String, prefill: String) -> String:
+	## The browser's native text prompt — the reliable text-entry path for the
+	## web export on mobile Safari. Returns "" on cancel.
+	var js := "window.prompt(%s, %s)" % [JSON.stringify(message), JSON.stringify(prefill)]
+	var result: Variant = JavaScriptBridge.eval(js, true)
+	return str(result).strip_edges() if result != null else ""
 
 
 func _build_global_panel() -> Control:
@@ -255,10 +284,13 @@ func _build_groups_panel() -> Control:
 	_join_edit.placeholder_text = "join code (e.g. K7Q2Z9)"
 	_join_edit.max_length = 6
 	_join_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if OS.has_feature("web"):
+		_join_edit.editable = false
+		_join_edit.gui_input.connect(_on_field_tapped.bind(_on_join))
 	join.add_child(_join_edit)
 	var join_btn := Button.new()
 	join_btn.text = "JOIN"
-	join_btn.pressed.connect(func() -> void: Leaderboard.join_group(_join_edit.text))
+	join_btn.pressed.connect(_on_join)
 	join.add_child(join_btn)
 	vbox.add_child(join)
 
@@ -268,10 +300,13 @@ func _build_groups_panel() -> Control:
 	_create_edit.placeholder_text = "new group name"
 	_create_edit.max_length = 24
 	_create_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if OS.has_feature("web"):
+		_create_edit.editable = false
+		_create_edit.gui_input.connect(_on_field_tapped.bind(_on_create))
 	make.add_child(_create_edit)
 	var make_btn := Button.new()
 	make_btn.text = "CREATE"
-	make_btn.pressed.connect(func() -> void: Leaderboard.create_group(_create_edit.text))
+	make_btn.pressed.connect(_on_create)
 	make.add_child(make_btn)
 	vbox.add_child(make)
 
@@ -286,6 +321,26 @@ func _build_groups_panel() -> Control:
 	_groups_status = _dim_status()
 	vbox.add_child(_groups_status)
 	return vbox
+
+
+func _on_join() -> void:
+	var code := _join_edit.text
+	if OS.has_feature("web"):
+		code = _web_prompt("Group join code (6 characters)", "")
+		if code.is_empty():
+			return
+		_join_edit.text = code
+	Leaderboard.join_group(code)
+
+
+func _on_create() -> void:
+	var group_name := _create_edit.text
+	if OS.has_feature("web"):
+		group_name = _web_prompt("New group name", "")
+		if group_name.is_empty():
+			return
+		_create_edit.text = group_name
+	Leaderboard.create_group(group_name)
 
 
 func _dim_status() -> Label:
