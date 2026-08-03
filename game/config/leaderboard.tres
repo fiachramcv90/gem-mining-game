@@ -4,3 +4,5 @@
 
 [resource]
 script = ExtResource("1_lb")
+project_url = "https://wcfalrjzuynnjkrjbral.supabase.co"
+anon_key = "sb_publishable_sZyNLSsLMPysypTcM5lrCw_Cm5gpmQR"

@@ -39,17 +39,22 @@ supabase db push
 
 ## Wire the game to the project
 
-Set the project URL + anon (publishable) key by **either**:
+Set the project URL + anon (publishable) key in
+`game/config/leaderboard.tres` (`project_url`, `anon_key`). The anon /
+publishable key is **designed to be public** and ships in every client-side
+Supabase app — data is protected by RLS, not by hiding the key — so committing
+it is the intended, safe path here. (Never commit the `service_role` key.)
 
-- Editing `game/config/leaderboard.tres` / `LeaderboardConfig.gd`
-  (`project_url`, `anon_key`), **or**
-- Exporting env vars (these win over the `.tres`, keeping secrets out of the
-  repo): `GEM_MINER_SUPABASE_URL`, `GEM_MINER_SUPABASE_ANON_KEY`.
+> The `GEM_MINER_SUPABASE_URL` / `GEM_MINER_SUPABASE_ANON_KEY` env vars are a
+> convenience for **local desktop runs only**. They do NOT reach the web
+> export: `OS.get_environment()` runs in the player's browser, which has no
+> process env vars, and CI env vars are not baked into the export. For the
+> GitHub Pages build the values must live in the committed `.tres` (above), or
+> be injected into it by a build step from GitHub Actions Secrets.
 
-The anon key is client-trusted and safe to ship (the board is advisory/social
-by design). Once a URL + key resolve, the client begins posting on the spec L3
-triggers (run-complete, visibility-hidden, app-launch) and the Global/Groups
-tabs light up.
+Once a URL + key resolve, the client begins posting on the spec L3 triggers
+(run-complete, visibility-hidden, app-launch) and the Global/Groups tabs light
+up.
 
 ## Trust model (do not build on top of this)
 
