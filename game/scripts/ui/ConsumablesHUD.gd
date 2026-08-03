@@ -45,16 +45,18 @@ func _ready() -> void:
 
 	_slots = VBoxContainer.new()
 	_slots.add_theme_constant_override("separation", int(SLOT_GAP))
-	_slots.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_slots.position = Vector2(-SLOT_SIZE.x - 12.0, SLOT_TOP)
+	# Pin to the TOP-RIGHT by anchoring the right edge and growing left/down —
+	# not via `position` (which is absolute parent-space, so a negative x lands
+	# off the LEFT edge instead of inset from the right).
+	_pin_top_right(_slots, SLOT_TOP)
 	add_child(_slots)
 
 	_refusal = Label.new()
 	_refusal.add_theme_font_size_override("font_size", 12)
 	_refusal.add_theme_color_override("font_color", Palette.UI_DANGER)
-	_refusal.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_refusal.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_refusal.position = Vector2(-230.0, SLOT_TOP + 2.0)
+	# Below the three slot buttons, right-aligned.
+	_pin_top_right(_refusal, SLOT_TOP + 3.0 * (SLOT_SIZE.y + SLOT_GAP) + 6.0)
 	_refusal.custom_minimum_size = Vector2(210, 0)
 	_refusal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_refusal.modulate = Color(1, 1, 1, 0)
@@ -67,6 +69,22 @@ func _ready() -> void:
 	Loadout.stock_changed.connect(_on_stock_changed)
 	Loadout.tool_used.connect(_on_tool_used)
 	_rebuild()
+
+
+func _pin_top_right(node: Control, top: float) -> void:
+	## Anchor the right edge inset 12px from the screen's right, grow leftward
+	## to fit content and downward from `top` — robust regardless of the node's
+	## dynamic width (avoids the absolute-`position` pitfall).
+	node.anchor_left = 1.0
+	node.anchor_right = 1.0
+	node.anchor_top = 0.0
+	node.anchor_bottom = 0.0
+	node.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	node.grow_vertical = Control.GROW_DIRECTION_END
+	node.offset_left = -12.0
+	node.offset_right = -12.0
+	node.offset_top = top
+	node.offset_bottom = top
 
 
 func _build_ghost(text: String, top: float) -> Label:
