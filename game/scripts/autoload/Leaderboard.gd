@@ -37,6 +37,14 @@ var best_haul := 0
 ## next absolute-value write under server GREATEST carries the truth.
 var scores_dirty := false
 
+## Best-effort board mirrors (spec L3/L5): the local save stays the truth, so
+## these are empty offline and the UI shows local values + reassurance.
+## global_rows: [{nickname, best_haul, total_banked}]. groups: [{id, name,
+## join_code}]. last_status: a short human line for the board UI.
+var global_rows: Array[Dictionary] = []
+var groups: Array[Dictionary] = []
+var last_status := ""
+
 ## Run-scoped best_haul accumulator (spec L3): resets at descent start, folds
 ## every banking event in on the event itself (order-independent).
 var _banked_this_run := 0
@@ -256,6 +264,133 @@ func _auth_headers() -> PackedStringArray:
 			"Content-Type: application/json",
 		]
 	)
+
+
+# --- groups & board reads (spec L5-B/D) --------------------------------------
+# All gated: with no configured backend these set a status and return, so the
+# Groups/Global tabs stay usable offline (local-is-truth, membership add-only).
+
+
+func refresh_boards() -> void:
+	## Pull the global board + my groups when a board is configured. Offline it
+	## clears the mirrors so the UI falls back to local values + reassurance.
+	if not config.enabled():
+		global_rows = []
+		groups = []
+		last_status = "offline — your scores are saved and will sync"
+		board_changed.emit()
+		return
+	_maybe_post()
+	var rows: Variant = await _rpc_get_global()
+	if rows is Array:
+		global_rows = _as_rows(rows)
+	var mine: Variant = await _rpc("my_groups", {})
+	if mine is Array:
+		groups = _as_groups(mine)
+	last_status = ""
+	board_changed.emit()
+
+
+func create_group(group_name: String) -> void:
+	if not config.enabled():
+		last_status = "connect a board to make groups (offline for now)"
+		board_changed.emit()
+		return
+	var res: Variant = await _rpc("create_group", {"p_name": group_name})
+	if res != null:
+		await refresh_boards()
+	else:
+		last_status = "could not create the group — try again"
+		board_changed.emit()
+
+
+func join_group(code: String) -> void:
+	if not config.enabled():
+		last_status = "connect a board to join groups (offline for now)"
+		board_changed.emit()
+		return
+	var res: Variant = await _rpc("join_group", {"p_code": code.strip_edges().to_upper()})
+	if res != null:
+		await refresh_boards()
+	else:
+		last_status = "no such group code"
+		board_changed.emit()
+
+
+func _rpc(fn: String, body: Dictionary) -> Variant:
+	## One-shot SECURITY DEFINER RPC POST over a fresh HTTPRequest (avoids
+	## interleaving with the score-post node). Returns parsed JSON or null.
+	if not await _ensure_session():
+		return null
+	var req := HTTPRequest.new()
+	req.timeout = config.request_timeout_secs
+	add_child(req)
+	var err := req.request(
+		"%s/rest/v1/rpc/%s" % [config.url(), fn],
+		_auth_headers(),
+		HTTPClient.METHOD_POST,
+		JSON.stringify(body)
+	)
+	if err != OK:
+		req.queue_free()
+		return null
+	var res: Array = await req.request_completed
+	req.queue_free()
+	var code: int = res[1]
+	if code < 200 or code >= 300:
+		return null
+	return JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8())
+
+
+func _rpc_get_global() -> Variant:
+	## The global board is a plain PostgREST select on the public `scores`.
+	if _http == null:
+		_http = HTTPRequest.new()
+		add_child(_http)
+	var q := "select=nickname,best_haul,total_banked&order=best_haul.desc&limit=50"
+	var err := _http.request(
+		"%s/rest/v1/scores?%s" % [config.url(), q], _auth_headers(), HTTPClient.METHOD_GET
+	)
+	if err != OK:
+		return null
+	var res: Array = await _http.request_completed
+	if int(res[1]) < 200 or int(res[1]) >= 300:
+		return null
+	return JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8())
+
+
+func _as_rows(arr: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for r: Variant in arr:
+		if r is Dictionary:
+			(
+				out
+				. append(
+					{
+						"nickname": str(r.get("nickname", "?")),
+						"best_haul": int(r.get("best_haul", 0)),
+						"total_banked": int(r.get("total_banked", 0)),
+					}
+				)
+			)
+	return out
+
+
+func _as_groups(arr: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for r: Variant in arr:
+		if r is Dictionary:
+			(
+				out
+				. append(
+					{
+						"id": str(r.get("id", "")),
+						"name": str(r.get("name", "group")),
+						"join_code": str(r.get("join_code", "")),
+					}
+				)
+			)
+	return out
 
 
 # --- save envelope (save_version 5) -------------------------------------------

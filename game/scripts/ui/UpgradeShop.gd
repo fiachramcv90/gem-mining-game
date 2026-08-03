@@ -35,6 +35,17 @@ var _wallet_label: Label
 var _rows := {}
 var _hoist_row: PanelContainer
 
+## EP1 gear mode (spec C1 / §E4 — the loadout lives in the garage shop, no
+## new hub button). A toggle swaps the upgrades list for the consumables
+## loadout; tool -> {"panel","charges","unlock","buy","equip"}.
+var _upgrades_scroll: ScrollContainer
+var _gear_scroll: ScrollContainer
+var _gear_rows := {}
+var _mode_upgrades_btn: Button
+var _mode_gear_btn: Button
+var _loadout_ghost: Label
+var _gear_mode := false
+
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(372, 0)
@@ -53,23 +64,62 @@ func _ready() -> void:
 	_wallet_label.add_theme_color_override("font_color", Palette.UI_GOLD)
 	vbox.add_child(_wallet_label)
 
+	# The UPGRADES | GEAR mode toggle (EP1 §E4): one garage shop, two lists.
+	var modes := HBoxContainer.new()
+	modes.add_theme_constant_override("separation", 6)
+	_mode_upgrades_btn = Button.new()
+	_mode_upgrades_btn.text = "UPGRADES"
+	_mode_upgrades_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mode_upgrades_btn.pressed.connect(_set_mode.bind(false))
+	modes.add_child(_mode_upgrades_btn)
+	_mode_gear_btn = Button.new()
+	_mode_gear_btn.text = "GEAR"
+	_mode_gear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mode_gear_btn.pressed.connect(_set_mode.bind(true))
+	modes.add_child(_mode_gear_btn)
+	vbox.add_child(modes)
+
+	# The one-shot loadout teach (spec C5/EP1-11): shown once a tool is buyable.
+	_loadout_ghost = Label.new()
+	_loadout_ghost.text = "equip up to 3 — tap a slot"
+	_loadout_ghost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_loadout_ghost.add_theme_font_size_override("font_size", 12)
+	_loadout_ghost.add_theme_color_override("font_color", Palette.UI_GOLD)
+	_loadout_ghost.visible = false
+	vbox.add_child(_loadout_ghost)
+
 	vbox.add_child(HSeparator.new())
 
 	# The track cards scroll if they must (Hoist revealed on a short screen);
 	# at the stock 440x880 viewport all six sit visible.
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 560)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
+	_upgrades_scroll = ScrollContainer.new()
+	_upgrades_scroll.custom_minimum_size = Vector2(0, 520)
+	_upgrades_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(_upgrades_scroll)
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 6)
-	scroll.add_child(list)
+	_upgrades_scroll.add_child(list)
 
 	for track in TRACKS:
 		list.add_child(_build_row(track))
 	_hoist_row = _build_row("hoist")
 	list.add_child(_hoist_row)
+
+	_gear_scroll = ScrollContainer.new()
+	_gear_scroll.custom_minimum_size = Vector2(0, 520)
+	_gear_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_gear_scroll.visible = false
+	vbox.add_child(_gear_scroll)
+	var gear_list := VBoxContainer.new()
+	gear_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gear_list.add_theme_constant_override("separation", 6)
+	_gear_scroll.add_child(gear_list)
+	for tool in Loadout.config.TOOLS:
+		gear_list.add_child(_build_gear_row(tool))
+
+	Loadout.loadout_changed.connect(refresh)
+	Loadout.stock_changed.connect(func(_t: String, _n: int) -> void: refresh())
 
 	var back := Button.new()
 	back.text = "BACK"
@@ -138,6 +188,139 @@ func _build_row(track: String) -> PanelContainer:
 	return panel
 
 
+func _build_gear_row(tool: String) -> PanelContainer:
+	## One consumable card: name + charge count / the pressure it insures / an
+	## unlock-or-buy button + an equip toggle (spec C1). Hidden until the tool's
+	## depth gate is reached (depth-gated shop visibility).
+	var cfg := Loadout.config
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UITheme.row_box())
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	panel.add_child(col)
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	col.add_child(head)
+	var name_label := Label.new()
+	name_label.text = cfg.name_of(tool)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_font_size_override("font_size", 15)
+	name_label.add_theme_color_override("font_color", Palette.UI_GOLD)
+	head.add_child(name_label)
+	var charges := Label.new()
+	charges.add_theme_font_size_override("font_size", 13)
+	head.add_child(charges)
+
+	var pressure := Label.new()
+	pressure.text = "insures %s" % cfg.pressure_of(tool)
+	pressure.add_theme_font_size_override("font_size", 11)
+	pressure.add_theme_color_override("font_color", Palette.UI_TEXT_DIM)
+	col.add_child(pressure)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 8)
+	col.add_child(foot)
+	var action := Button.new()
+	action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action.custom_minimum_size = Vector2(0, 40)
+	action.pressed.connect(_on_gear_action.bind(tool))
+	foot.add_child(action)
+	var equip := Button.new()
+	equip.custom_minimum_size = Vector2(104, 40)
+	equip.pressed.connect(_on_equip.bind(tool))
+	foot.add_child(equip)
+
+	_gear_rows[tool] = {"panel": panel, "charges": charges, "action": action, "equip": equip}
+	return panel
+
+
+func _set_mode(gear: bool) -> void:
+	_gear_mode = gear
+	_upgrades_scroll.visible = not gear
+	_gear_scroll.visible = gear
+	refresh()
+
+
+func _on_gear_action(tool: String) -> void:
+	# Not unlocked yet -> pay the one-time unlock; unlocked -> buy a charge.
+	var did := Loadout.unlock(tool) if not Loadout.is_unlocked(tool) else Loadout.buy_charge(tool)
+	if did:
+		_pop_gear_row(tool)
+
+
+func _on_equip(tool: String) -> void:
+	Loadout.toggle_active(tool)
+	if Loadout.has_equipped_gear() and not Nudges.loadout_shown:
+		Nudges.mark_nudge("loadout_shown")  # onboarding done: first tool equipped
+
+
+func _pop_gear_row(tool: String) -> void:
+	var panel: PanelContainer = _gear_rows[tool]["panel"]
+	panel.pivot_offset = panel.size * 0.5
+	var pop := create_tween()
+	pop.set_parallel(true)
+	(
+		pop
+		. tween_property(panel, "scale", Vector2.ONE, 0.3)
+		. from(Vector2(1.1, 1.1))
+		. set_trans(Tween.TRANS_BACK)
+		. set_ease(Tween.EASE_OUT)
+	)
+	pop.tween_property(panel, "modulate", Color.WHITE, 0.45).from(Color(1.0, 0.85, 0.3))
+
+
+func _refresh_gear() -> void:
+	var cfg := Loadout.config
+	var any_visible := false
+	for tool: String in cfg.TOOLS:
+		var row: Dictionary = _gear_rows[tool]
+		var panel: PanelContainer = row["panel"]
+		var vis := Loadout.is_visible(tool)
+		panel.visible = vis
+		if not vis:
+			continue
+		any_visible = true
+		_refresh_gear_row(tool, row)
+	# The active-mode buttons read at a glance; gear ghost teaches once.
+	_mode_upgrades_btn.modulate = Color.WHITE if not _gear_mode else Color(1, 1, 1, 0.5)
+	_mode_gear_btn.modulate = Color.WHITE if _gear_mode else Color(1, 1, 1, 0.5)
+	_loadout_ghost.visible = _gear_mode and any_visible and not Nudges.loadout_shown
+
+
+func _refresh_gear_row(tool: String, row: Dictionary) -> void:
+	var cfg := Loadout.config
+	var cap := cfg.cap_of(tool)
+	var have := Loadout.charges(tool)
+	(row["charges"] as Label).text = "×%d/%d" % [have, cap]
+	var action: Button = row["action"]
+	var equip: Button = row["equip"]
+	if not Loadout.is_unlocked(tool):
+		var price := int(cfg.unlock_price[tool])
+		action.text = "UNLOCK  $%d" % price
+		UITheme.style_price_button(
+			action, UITheme.Price.AFFORD if price <= Wallet.money else UITheme.Price.POOR
+		)
+		equip.visible = false
+		return
+	equip.visible = true
+	var per := int(cfg.per_charge_price[tool])
+	if have >= cap:
+		action.text = "FULL"
+		UITheme.style_price_button(action, UITheme.Price.DONE)
+	else:
+		action.text = "+  $%d" % per
+		UITheme.style_price_button(
+			action, UITheme.Price.AFFORD if per <= Wallet.money else UITheme.Price.POOR
+		)
+	# Equip is a live toggle (never disabled-as-done): equipped reads gold, an
+	# empty slot reads normal, and a full loadout greys the un-equipped rest.
+	var active := Loadout.is_active(tool)
+	equip.text = "EQUIPPED" if active else "EQUIP"
+	equip.disabled = not active and Loadout.active_tools().size() >= int(cfg.active_slots)
+	equip.add_theme_color_override("font_color", Palette.UI_GOLD if active else Palette.UI_TEXT)
+
+
 func _pip_count(track: String) -> int:
 	return 1 if track == "hoist" else Upgrades.max_level(track)
 
@@ -204,6 +387,7 @@ func refresh() -> void:
 			)
 		_rows[track]["pips"].queue_redraw()
 	_refresh_hoist()
+	_refresh_gear()
 
 
 func _refresh_hoist() -> void:
