@@ -60,6 +60,7 @@ home?" → self-powered ascent → sell, refuel, upgrade, descend deeper.
   respawn at the surface topped up **for free**. No rescue fee — no
   death-spiral, by design. Wallet is never at risk; cargo always is: that
   asymmetry is the greed-vs-safety tension.
+  - **⟲ EP1 amendment ([#42](https://github.com/fiachramcv90/gem-mining-game/issues/42)):** the *carried = at risk* set now also includes **active-slot consumable charges** (forfeited on a lost run); *banked = safe* still covers wallet, upgrades, **and garage-stored charges**. The economy is now permanent upgrades **plus a discretionary consumables sink**. See the [EP1 spec](../enhancement-pack-1/assets/12-ep1-final-spec.md).
 - **Self-powered ascent.** No free return button; fast-travel exists only as
   the late-game **Hoist** upgrade (§4). Refuel/repair at the surface is free,
   but modelled as a cost **pinned to zero** (`refuel_cost_per_unit = 0`,
@@ -177,6 +178,8 @@ consequences are **features, not breaches**:
 Validated by a throwaway 20-run simulation, not intuition. The entire economy
 lives in the permanent-upgrade **ratchet**; there is **no per-run cash sink**
 (refuel/repair free, §1) and **no death-spiral**.
+
+> **⟲ EP1 amendment ([#42](https://github.com/fiachramcv90/gem-mining-game/issues/42)/[#43](https://github.com/fiachramcv90/gem-mining-game/issues/43)):** Enhancement Pack 1 adds **consumable dig-tools** — the game's **first deliberate cash sink** (one-time unlocks + per-charge purchases). It is **discretionary, never mandatory** (drilling + self-ascent always work broke), so the **no-death-spiral property is preserved** — confirmed numerically by the #43 re-sim (worst-case over-buyer stays solvent and recovers by drilling). Refuel/repair stays free. See the [EP1 spec](../enhancement-pack-1/assets/12-ep1-final-spec.md).
 
 - **Gem values by tier:** T1 **8** · T2 **15** · T3 **28** · T4 **52** ·
   T5 **95** · prize **900** (off-curve, ~9.5× a T5). Expected value per dug
@@ -379,6 +382,8 @@ whole save-schema cost is one `nudges` key (§13).
 > refuel/repair · upgrade · descend) **+ the Miner's Log button** (0012)
 > **+ the ♥ Support corner** (0010) **+ the 💾 save-safety corner** (0013).
 > Nothing else claims hub space.
+>
+> **⟲ EP1 re-check ([#41](https://github.com/fiachramcv90/gem-mining-game/issues/41)):** the census **holds unchanged** — the leaderboard folds into the Miner's Log button and the consumable loadout lives in the garage shop, so EP1 adds **no new hub button**.
 
 ---
 
@@ -508,10 +513,18 @@ planned additions under the same `save_version` migration:
   "stats":      { ... 8 int counters ... },   # 0012 (§8)
   "milestones": { "milestone_id": true },     # 0012 (§8)
   "nudges":     { "audio_hint_shown": false,
-                  "a2hs_dismissed":   0 },    # 0013 (§9)
+                  "a2hs_dismissed":   0,
+                  "loadout_shown":    false,  # EP1 #51
+                  "dynamite_taught":  false,  # EP1 #51
+                  "board_intro_shown":false }, # EP1 #51 (0013's dict — no extra migration)
+  "best_haul":  0,                 # EP1 #40 — best single surface-to-surface descent
+  "device_id":  "",                # EP1 #39 — durable leaderboard identity anchor (UUID)
+  "nickname":   "",                # EP1 #39/#41 — board name (auto-assigned default)
   "meta":     { "saved_at": 0, "play_secs": 0, "schema_note": "" },
 }
 ```
+
+> **⟲ EP1 amendment ([#40](https://github.com/fiachramcv90/gem-mining-game/issues/40)):** the leaderboard adds `best_haul`, `device_id`, `nickname` under **one `save_version` bump** (v4 → v5 in the built game), and three onboarding flags that ride in the **existing `nudges` dict** (self-healing, no extra migration). `total_banked` needs no field — it *is* `stats.money_banked`. See the [EP1 spec](../enhancement-pack-1/assets/12-ep1-final-spec.md).
 
 - **Deltas:** per touched 32×32 chunk, a **128-byte dug bitmask** (1 bit per
   tile) + a sparse collected-gem coord list. Dug ≠ collected (full-hold gems

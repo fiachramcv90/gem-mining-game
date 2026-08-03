@@ -325,7 +325,7 @@ function drillBandCurve(P) {
 
 const API = {
   DEFAULTS, makeRng, bandAt, baselineHardness, drillTime, evPerTile,
-  reachLimits, simulateRun, simulateSession, evCurve, drillBandCurve, hullDmgPerTile,
+  reachLimits, simulateRun, simulateSession, nextPurchase, evCurve, drillBandCurve, hullDmgPerTile,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 if (typeof window !== 'undefined') window.EconomyModel = API;

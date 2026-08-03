@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EP1-04 Leaderboard UX — throwaway prototype</title>
+<style>
+  :root{
+    --bg:#1a1420; --panel:#241a2e; --panel2:#2e2238; --ink:#f2e9dc; --dim:#a08fb0;
+    --gold:#ffcf5c; --gem:#5ce0d8; --danger:#ff6b6b; --line:#3a2c48; --ok:#8bd45c;
+  }
+  *{box-sizing:border-box;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  body{margin:0;background:#0d0a12;color:var(--ink);display:flex;flex-wrap:wrap;
+    gap:22px;justify-content:center;align-items:flex-start;padding:24px}
+  h1{width:100%;text-align:center;font-size:15px;color:var(--dim);font-weight:600;letter-spacing:.5px}
+  h1 b{color:var(--gold)}
+  .col{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .cap{font-size:11px;color:var(--dim);max-width:300px;text-align:center;line-height:1.5}
+  .cap b{color:var(--gem)}
+  /* phone frame */
+  .phone{width:300px;height:600px;background:var(--bg);border:3px solid #000;border-radius:26px;
+    box-shadow:0 8px 30px rgba(0,0,0,.6),inset 0 0 0 2px #322640;position:relative;overflow:hidden;
+    display:flex;flex-direction:column}
+  .status{height:26px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 14px;font-size:10px;color:var(--dim);flex:0 0 auto}
+  .screen{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .title{padding:12px 14px 6px;font-size:13px;letter-spacing:1px;color:var(--gold);font-weight:700}
+  .sub{padding:0 14px 8px;font-size:10px;color:var(--dim)}
+  .body{flex:1;overflow:auto;padding:4px 12px 12px}
+  .tabbar{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--line)}
+  .tab{flex:1;text-align:center;font-size:10px;padding:7px 4px;border-radius:8px;color:var(--dim);
+    background:transparent;cursor:pointer;border:1px solid transparent}
+  .tab.on{background:var(--panel2);color:var(--ink);border-color:var(--line)}
+  .row{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:9px;margin-bottom:5px;
+    background:var(--panel);font-size:11px}
+  .row.me{background:linear-gradient(90deg,#3a2c1a,#241a2e);border:1px solid var(--gold)}
+  .rank{width:22px;color:var(--dim);font-weight:700;text-align:right}
+  .rank.top{color:var(--gold)}
+  .who{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .val{color:var(--gem);font-weight:700}
+  .stat{display:flex;justify-content:space-between;padding:8px 10px;font-size:11px;
+    border-bottom:1px dashed var(--line);color:var(--dim)}
+  .stat b{color:var(--ink)}
+  .big{font-size:20px;color:var(--gold);text-align:center;padding:14px 0 4px;font-weight:800}
+  .biglbl{text-align:center;font-size:10px;color:var(--dim);padding-bottom:10px}
+  .btn{display:block;width:100%;padding:11px;border-radius:10px;background:var(--panel2);
+    color:var(--ink);border:1px solid var(--line);font-size:11px;text-align:center;margin:6px 0;cursor:pointer}
+  .btn.g{background:#3a2c1a;border-color:var(--gold);color:var(--gold)}
+  .hubgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}
+  .hubbtn{aspect-ratio:1.4;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--dim)}
+  .hubbtn .ic{font-size:20px}
+  .hubbtn.hl{border-color:var(--gold);color:var(--gold);background:#241a12}
+  .corner{position:absolute;bottom:8px;font-size:9px;color:var(--dim)}
+  .corner.l{left:12px}.corner.r{right:12px}
+  .banner{margin:0 12px;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,#2a2036,#3a2c1a);
+    border:1px solid var(--gold);font-size:11px;color:var(--gold);text-align:center}
+  .toast{position:absolute;left:14px;right:14px;bottom:14px;padding:10px;border-radius:10px;
+    background:#241a2e;border:1px solid var(--line);font-size:10px;color:var(--dim);text-align:center}
+  .code{font-size:22px;letter-spacing:6px;color:var(--gem);text-align:center;padding:10px;font-weight:800}
+  .field{width:100%;padding:10px;border-radius:9px;background:#120e18;border:1px solid var(--line);
+    color:var(--ink);font-size:13px;text-align:center;letter-spacing:2px}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;
+    gap:8px;color:var(--dim);font-size:11px;text-align:center;padding:0 30px}
+  .offline{border-color:var(--danger)!important}
+  .pill{display:inline-block;font-size:9px;padding:2px 7px;border-radius:20px;background:var(--panel2);color:var(--dim);margin-left:6px}
+  .pill.ok{color:var(--ok)} .pill.off{color:var(--danger)}
+  .note{font-size:9px;color:var(--dim);padding:6px 12px;line-height:1.5;border-top:1px solid var(--line)}
+  .note b{color:var(--gem)}
+</style>
+</head>
+<body>
+<h1>EP1-04 · <b>Leaderboard UX</b> — throwaway prototype (grey-box, react-to-it). Every screen carries a design call in its footer note.</h1>
+
+<!-- 1. HUB -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>GEM MINER</span><span>▲ garage</span></div>
+    <div class="screen">
+      <div class="title">GARAGE</div>
+      <div class="sub">the hub — sell · refuel · upgrade · descend</div>
+      <div class="hubgrid">
+        <div class="hubbtn"><span class="ic">⛏️</span>DESCEND</div>
+        <div class="hubbtn"><span class="ic">🛒</span>SHOP</div>
+        <div class="hubbtn"><span class="ic">🔧</span>UPGRADE</div>
+        <div class="hubbtn hl"><span class="ic">📖</span>MINER'S LOG<br>+ BOARDS</div>
+      </div>
+      <div class="corner l">💾 save-safety</div>
+      <div class="corner r">♥ support</div>
+    </div>
+    <div class="note"><b>CALL A — entry point.</b> Recommend <b>no new hub button</b>: fold the board into the existing Miner's Log screen (0013 census stays 4 actions + Log + ♥ + 💾). Alt: a dedicated 🏆 button.</div>
+  </div>
+  <div class="cap">The shipped hub census is tight. Adding the board <b>inside</b> the Log keeps it at one meta button.</div>
+</div>
+
+<!-- 2. LOG + BOARDS (tabs) -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>MINER'S LOG</span><span>online <span class="pill ok">●</span></span></div>
+    <div class="screen">
+      <div class="tabbar">
+        <div class="tab">STATS</div>
+        <div class="tab on">GLOBAL</div>
+        <div class="tab">GROUPS</div>
+      </div>
+      <div class="sub" style="padding-top:8px">Best single haul · surface-to-surface</div>
+      <div class="body">
+        <div class="row"><span class="rank top">1</span><span class="who">RockHound</span><span class="val">$48,210</span></div>
+        <div class="row"><span class="rank top">2</span><span class="who">deepdellie</span><span class="val">$41,980</span></div>
+        <div class="row"><span class="rank top">3</span><span class="who">Máire</span><span class="val">$39,110</span></div>
+        <div class="row"><span class="rank">4</span><span class="who">gravel_gary</span><span class="val">$30,540</span></div>
+        <div class="row me"><span class="rank">7</span><span class="who">you (Prospector)</span><span class="val">$21,164</span></div>
+        <div class="row"><span class="rank">8</span><span class="who">tunnelrat</span><span class="val">$19,900</span></div>
+      </div>
+      <div class="tabbar" style="border-top:1px solid var(--line);border-bottom:none">
+        <div class="tab">metric: <b style="color:var(--ink)">Best haul ▾</b></div>
+        <div class="tab">Total banked</div>
+      </div>
+    </div>
+    <div class="note"><b>CALL B — one screen, two switchers.</b> Board-scope tabs (Global/Groups) + a metric toggle (Best haul / Total banked). Your row is always pinned + highlighted even when off-screen.</div>
+  </div>
+  <div class="cap">Two boards from #39 (<b>total_banked</b>, <b>best_haul</b>) as a metric toggle; scope as tabs. One screen carries all of it.</div>
+</div>
+
+<!-- 3. POST-RUN compare -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>SURFACED</span><span>sold</span></div>
+    <div class="screen">
+      <div class="title" style="color:var(--gem)">HAUL SOLD</div>
+      <div class="big">+$21,164</div>
+      <div class="biglbl">banked this descent</div>
+      <div class="banner">🏆 NEW BEST HAUL — you jumped to <b>#7</b> on Global (+2)</div>
+      <div class="body" style="padding-top:14px">
+        <div class="stat"><span>cargo</span><b>50 gems · 1 prize</b></div>
+        <div class="stat"><span>lifetime banked</span><b>$184,900</b></div>
+        <div class="stat"><span>vs your friends</span><b>#2 in "Lunchtime Diggers"</b></div>
+      </div>
+      <button class="btn g">DESCEND AGAIN</button>
+      <button class="btn">back to garage</button>
+    </div>
+    <div class="note"><b>CALL C — the compare beat.</b> A <b>non-blocking</b> banner on the existing sell screen (reuses 0008 shake+flash), never a mid-run modal. Only shows when a rank actually changed.</div>
+  </div>
+  <div class="cap">The arcade "you placed #N" hit lands <b>at the surface</b>, where banking already happens — never interrupts a run.</div>
+</div>
+
+<!-- 4. GROUPS + join/create -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>MINER'S LOG</span><span>online <span class="pill ok">●</span></span></div>
+    <div class="screen">
+      <div class="tabbar">
+        <div class="tab">STATS</div>
+        <div class="tab">GLOBAL</div>
+        <div class="tab on">GROUPS</div>
+      </div>
+      <div class="body" style="padding-top:10px">
+        <div class="sub" style="padding-left:2px">YOUR GROUPS</div>
+        <div class="row"><span class="who">🟣 Lunchtime Diggers</span><span class="val">#2/6</span></div>
+        <div class="row"><span class="who">🟢 The Mole People</span><span class="val">#1/4</span></div>
+        <div style="height:10px"></div>
+        <button class="btn">＋ Join with a code</button>
+        <button class="btn">✦ Create a group</button>
+        <div class="code">7QK4R9</div>
+        <div class="sub" style="text-align:center">your "Mole People" invite code — tap to share</div>
+      </div>
+    </div>
+    <div class="note"><b>CALL D — groups.</b> 6-char Crockford codes (#39). Join is idempotent + add-only (no leave/kick in v1). Tap-to-share the code (native share sheet).</div>
+  </div>
+  <div class="cap">Friend-scale social. A code you text to mates; membership only grows in v1 (lifecycle is fog until a public board is abused).</div>
+</div>
+
+<!-- 5. NICKNAME (lazy) -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>MINER'S LOG</span><span>online <span class="pill ok">●</span></span></div>
+    <div class="screen">
+      <div class="title">YOUR MINER</div>
+      <div class="sub">shown on the boards — change it any time</div>
+      <div class="body" style="padding-top:20px">
+        <input class="field" value="Prospector" />
+        <div class="sub" style="text-align:center;padding-top:6px">auto-assigned · 3–16 chars · not unique</div>
+        <button class="btn g" style="margin-top:18px">SAVE NAME</button>
+        <div class="toast" style="position:static;margin-top:20px">No sign-up. No first-run pop-up. You get an auto-name on your first bank; rename here whenever you like.</div>
+      </div>
+    </div>
+    <div class="note"><b>CALL E — identity is lazy.</b> No nickname modal on first launch (#39): default auto-name, lazy row on first bank, editable here. Zero friction to start playing.</div>
+  </div>
+  <div class="cap">Honours the shipped no-modal onboarding tone. The board never gates play behind a name prompt.</div>
+</div>
+
+<!-- 6. EMPTY / OFFLINE -->
+<div class="col">
+  <div class="phone">
+    <div class="status"><span>MINER'S LOG</span><span>offline <span class="pill off">●</span></span></div>
+    <div class="screen">
+      <div class="tabbar">
+        <div class="tab">STATS</div>
+        <div class="tab on">GLOBAL</div>
+        <div class="tab">GROUPS</div>
+      </div>
+      <div class="body">
+        <div class="banner offline" style="border-color:var(--danger);color:var(--danger);background:#2a1420">
+          ⚠ Boards offline — your scores are safe and will sync when you're back.</div>
+        <div class="empty">
+          <div style="font-size:26px">📡</div>
+          <div>Can't reach the boards right now.</div>
+          <div style="color:var(--ink)">Your best haul <b>$21,164</b> is saved locally.</div>
+          <div>Keep digging — it'll post itself later.</div>
+        </div>
+      </div>
+    </div>
+    <div class="note"><b>CALL F — offline is normal.</b> Free tier auto-pauses (#38). Local is truth (#40): show the player's own local values, reassure, never block. Empty global board = "be the first to dig deep."</div>
+  </div>
+  <div class="cap">"Backend unreachable" is a routine state, not an error. The screen reassures and shows local truth.</div>
+</div>
+
+</body>
+</html>
