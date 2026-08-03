@@ -13,25 +13,16 @@ extends Control
 ## one-shot "GET CLEAR!" (the lit fuse is the permanent teacher). Both are
 ## one-shots riding the existing nudges dict.
 
-const SLOT_SIZE := Vector2(78, 46)
+const SLOT_SIZE := Vector2(84, 46)
 const SLOT_GAP := 8.0
 const SLOT_TOP := 12.0
 const REFUSAL_SECS := 1.6
-
-## Short button captions (the default font has no emoji; words are the tell).
-const SHORT_LABELS := {
-	"flare": "FLARE",
-	"fuel_cell": "FUEL",
-	"dynamite": "DYNAMITE",
-	"repair_kit": "REPAIR",
-	"scout": "SCOUT",
-	"hauler": "HAULER",
-}
 
 var tools: ToolRunner
 
 var _slots: VBoxContainer
 var _buttons := {}
+var _icons := {}
 var _refusal: Label
 var _refusal_clock := 0.0
 var _gear_ghost: Label
@@ -120,13 +111,22 @@ func _rebuild() -> void:
 	for child in _slots.get_children():
 		child.queue_free()
 	_buttons.clear()
+	_icons.clear()
 	for tool in Loadout.active_tools():
 		var button := Button.new()
 		button.custom_minimum_size = SLOT_SIZE
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(_on_slot_pressed.bind(tool))
+		# The code-drawn tool glyph + charge count, overlaid on the button (it
+		# ignores mouse so the button still takes the tap).
+		var icon := ToolIcon.new()
+		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon.offset_left = 8.0
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon)
 		_slots.add_child(button)
 		_buttons[tool] = button
+		_icons[tool] = icon
 	_refresh_counts()
 
 
@@ -134,8 +134,10 @@ func _refresh_counts() -> void:
 	for tool: String in _buttons.keys():
 		var button: Button = _buttons[tool]
 		var n := Loadout.charges(tool)
-		button.text = "%s\n×%d" % [SHORT_LABELS.get(tool, tool), n]
+		(_icons[tool] as ToolIcon).set_data(tool, n)
+		# Spent slots dim (the glyph too), like the shop's unaffordable state.
 		button.disabled = n <= 0
+		(_icons[tool] as ToolIcon).modulate = Color(1, 1, 1, 1.0 if n > 0 else 0.4)
 
 
 func _on_stock_changed(_tool: String, _count: int) -> void:
